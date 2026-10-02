@@ -1,0 +1,23 @@
+{
+  "name": "dynamic-background",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "author": "mathgen44",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/plugin-autostart": "^2.7.0",
+    "@tauri-apps/plugin-dialog": "^2.8.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.1",
+    "vite": "^8.3.2"
+  }
+}

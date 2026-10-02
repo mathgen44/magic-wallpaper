@@ -1,0 +1,53 @@
+# Compile l'installeur Windows (NSIS, sans droits administrateur).
+# - Pousser un tag "v*" (ex. v0.1.0) crée une release GitHub en brouillon avec le setup.exe.
+# - Lancement manuel (onglet Actions → Release → Run workflow) : l'installeur est
+#   disponible dans les "artifacts" du run.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: npm ci
+
+      - name: Tests Rust
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: Build + release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: "Dynamic Background ${{ github.ref_name }}"
+          releaseBody: |
+            Téléchargez **Dynamic Background_x.y.z_x64-setup.exe** ci-dessous et lancez-le.
+            L'installation se fait pour l'utilisateur courant, sans droits administrateur.
+          releaseDraft: true
+          prerelease: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installeur-windows
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
