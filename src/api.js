@@ -92,7 +92,10 @@ export const api = {
   async getMonitors() {
     if (isTauri) return invoke("get_monitors");
     const dpr = window.devicePixelRatio || 1;
-    return [{ name: "Écran principal", width: Math.round(screen.width * dpr), height: Math.round(screen.height * dpr), scale: dpr, primary: true }];
+    const list = [{ name: "\\\\.\\DISPLAY1", width: Math.round(screen.width * dpr), height: Math.round(screen.height * dpr), scale: dpr, primary: true }];
+    // `?ecrans=2` dans l'URL simule un second écran (test de l'interface multi-écrans).
+    if (new URLSearchParams(location.search).get("ecrans") === "2") list.push({ name: "\\\\.\\DISPLAY2", width: 3840, height: 2160, scale: 1.5, primary: false });
+    return list;
   },
   async listImages(folder, recursive) {
     if (isTauri) return (await invoke("list_images", { folder, recursive })).map((p) => convertFileSrc(p));

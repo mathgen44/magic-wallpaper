@@ -308,3 +308,10 @@ details summary { cursor: pointer; color: var(--e-muted); margin-top: 6px; }
 
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-thumb { background: #2c3140; border-radius: 10px; border: 3px solid var(--e-panel); }
+
+/* ---- dispositions ---- */
+.warn { color: #f5b84a; }
+.layout-row { display: flex; gap: 6px; align-items: center; }
+.layout-row input { flex: 1; min-width: 0; }
+.layout-row.active input { border-color: var(--e-accent); }
+.topbar #layout { max-width: 260px; }

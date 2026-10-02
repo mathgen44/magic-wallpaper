@@ -19,6 +19,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg>
         </button>
         <select id="monitor" hidden title="Écran à prévisualiser"></select>
+        <select id="layout" title="Disposition en cours d'édition"></select>
+        <button id="btn-new-layout" class="btn-icon" title="Nouvelle disposition pour cet écran (copie de la disposition actuelle)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <span id="layout-warn" class="warn small" hidden title="Affectez-la dans Réglages → Écrans">Disposition non affichée sur cet écran</span>
         <span id="zoom" class="muted small"></span>
       </div>
       <div class="tb-group right">

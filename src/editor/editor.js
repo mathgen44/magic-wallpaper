@@ -4,7 +4,7 @@ import "../styles/widgets.css";
 import "../styles/editor.css";
 import { api, isTauri } from "../api.js";
 import { Board } from "../board.js";
-import { defaultConfig, makeWidget, normalize } from "../model.js";
+import { defaultConfig, defaultLayout, layoutForScreen, makeWidget, normalize } from "../model.js";
 import { FONTS, PRESETS, presetConfig } from "../themes.js";
 import { WIDGETS, WIDGET_LIST } from "../widgets/index.js";
 import { clamp, clone, el, uid } from "../util.js";
@@ -22,11 +22,17 @@ const S = {
   future: [],
   monitors: [],
   monitor: 0,
+  layoutId: null, // disposition en cours d'édition
   showGrid: true,
   live: true,
 };
 const $ = (sel) => document.querySelector(sel);
-const selectedWidget = () => S.cfg.widgets.find((w) => w.id === S.selected);
+/** Disposition en cours d'édition. */
+function L() {
+  return S.cfg.layouts.find((l) => l.id === S.layoutId) || S.cfg.layouts[0];
+}
+const selectedWidget = () => L().widgets.find((w) => w.id === S.selected);
+const monitorKey = (m) => m?.name || "";
 
 let coalesceKey = null;
 let coalesceTimer;
@@ -47,16 +53,14 @@ function undo() {
   S.future.push(JSON.stringify(S.cfg));
   S.cfg = JSON.parse(S.past.pop());
   coalesceKey = null;
-  if (!selectedWidget()) S.selected = null;
-  changed({ rebuild: true });
+  afterStructureChange();
 }
 function redo() {
   if (!S.future.length) return;
   S.past.push(JSON.stringify(S.cfg));
   S.cfg = JSON.parse(S.future.pop());
   coalesceKey = null;
-  if (!selectedWidget()) S.selected = null;
-  changed({ rebuild: true });
+  afterStructureChange();
 }
 
 // ===========================================================================
@@ -65,9 +69,18 @@ function redo() {
 let board;
 let liveTimer;
 
+/** Après un changement de disposition ou de structure (annuler, import, suppression…). */
+function afterStructureChange() {
+  if (!S.cfg.layouts.some((l) => l.id === S.layoutId)) S.layoutId = S.cfg.layouts[0].id;
+  if (!selectedWidget()) S.selected = null;
+  renderLayoutBar();
+  fitStage();
+  changed({ rebuild: true });
+}
+
 /** À appeler après toute modification de S.cfg. */
 function changed({ rebuild = false, inspector = false } = {}) {
-  board.render(S.cfg);
+  board.render(L());
   renderFrames();
   renderLayers();
   if (rebuild) renderInspector();
@@ -128,7 +141,7 @@ function fitStage() {
   screen.style.height = `${h}px`;
   screen.style.transform = `translate(-50%, -50%) scale(${k})`;
   $("#zoom").textContent = `${w} × ${h} · ${Math.round(k * 100)} %`;
-  const { cols, rows } = S.cfg.grid;
+  const { cols, rows } = L().grid;
   $("#grid").style.backgroundSize = `${100 / cols}% ${100 / rows}%`;
 }
 
@@ -139,9 +152,9 @@ const HANDLES = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 
 function renderFrames() {
   const overlay = $("#frames");
-  const { cols, rows } = S.cfg.grid;
+  const { cols, rows } = L().grid;
   const existing = new Map([...overlay.children].map((f) => [f.dataset.id, f]));
-  S.cfg.widgets.forEach((w, i) => {
+  L().widgets.forEach((w, i) => {
     let f = existing.get(w.id);
     existing.delete(w.id);
     if (!f) {
@@ -165,7 +178,7 @@ function renderFrames() {
 /** Convertit un déplacement en pixels écran → cases de grille. */
 function cellPx() {
   const r = $("#screen").getBoundingClientRect();
-  return { cw: r.width / S.cfg.grid.cols, ch: r.height / S.cfg.grid.rows, rect: r };
+  return { cw: r.width / L().grid.cols, ch: r.height / L().grid.rows, rect: r };
 }
 
 function onFramePointerDown(e) {
@@ -181,7 +194,7 @@ function onFramePointerDown(e) {
   const handle = e.target.dataset.h || null;
   const start = { x: w.x, y: w.y, w: w.w, h: w.h };
   const { cw, ch } = cellPx();
-  const { cols, rows } = S.cfg.grid;
+  const { cols, rows } = L().grid;
   const p0 = { x: e.clientX, y: e.clientY };
   let moved = false;
   frame.setPointerCapture(e.pointerId);
@@ -210,7 +223,7 @@ function onFramePointerDown(e) {
     if (!moved) snapshot();
     moved = true;
     Object.assign(w, { x, y, w: ww, h });
-    board.render(S.cfg);
+    board.render(L());
     renderFrames();
     refreshInspector();
   };
@@ -242,25 +255,25 @@ function overlaps(a, b) {
 }
 
 function findFreeSpot(w, h) {
-  const { cols, rows } = S.cfg.grid;
+  const { cols, rows } = L().grid;
   for (let y = 0; y <= rows - h; y++)
     for (let x = 0; x <= cols - w; x++) {
       const r = { x, y, w, h };
-      if (!S.cfg.widgets.some((o) => overlaps(r, o))) return { x, y };
+      if (!L().widgets.some((o) => overlaps(r, o))) return { x, y };
     }
   return { x: Math.round((cols - w) / 2), y: Math.round((rows - h) / 2) };
 }
 
 function addWidget(type, at = null) {
   const w = makeWidget(type);
-  const { cols, rows } = S.cfg.grid;
+  const { cols, rows } = L().grid;
   w.w = Math.min(w.w, cols);
   w.h = Math.min(w.h, rows);
   const pos = at || findFreeSpot(w.w, w.h);
   w.x = clamp(pos.x, 0, cols - w.w);
   w.y = clamp(pos.y, 0, rows - w.h);
   snapshot();
-  S.cfg.widgets.push(w);
+  L().widgets.push(w);
   S.selected = w.id;
   S.tab = "widget";
   changed({ rebuild: true });
@@ -293,7 +306,7 @@ function dropPosition(e) {
   const def = WIDGETS[dragType];
   if (!def) return null;
   const { cw, ch, rect } = cellPx();
-  const { cols, rows } = S.cfg.grid;
+  const { cols, rows } = L().grid;
   const x = clamp(Math.round((e.clientX - rect.left) / cw - def.size.w / 2), 0, cols - def.size.w);
   const y = clamp(Math.round((e.clientY - rect.top) / ch - def.size.h / 2), 0, rows - def.size.h);
   return { x, y, w: def.size.w, h: def.size.h };
@@ -305,7 +318,7 @@ function setupDrop() {
     const p = dropPosition(e);
     if (!p) return;
     e.preventDefault();
-    const { cols, rows } = S.cfg.grid;
+    const { cols, rows } = L().grid;
     Object.assign(ghost.style, { left: `${(p.x / cols) * 100}%`, top: `${(p.y / rows) * 100}%`, width: `${(p.w / cols) * 100}%`, height: `${(p.h / rows) * 100}%` });
     ghost.hidden = false;
   });
@@ -332,7 +345,7 @@ function setupDrop() {
 function renderLayers() {
   const list = $("#layers");
   list.replaceChildren(
-    ...[...S.cfg.widgets].reverse().map((w) =>
+    ...[...L().widgets].reverse().map((w) =>
       el(
         "button",
         { class: `layer${w.id === S.selected ? " active" : ""}`, onclick: () => select(w.id) },
@@ -341,7 +354,7 @@ function renderLayers() {
       ),
     ),
   );
-  $("#layers-empty").hidden = S.cfg.widgets.length > 0;
+  $("#layers-empty").hidden = L().widgets.length > 0;
 }
 function layerName(w) {
   const o = w.options;
@@ -350,7 +363,7 @@ function layerName(w) {
 }
 
 function moveLayer(id, dir) {
-  const arr = S.cfg.widgets;
+  const arr = L().widgets;
   const i = arr.findIndex((w) => w.id === id);
   if (i < 0) return;
   snapshot();
@@ -361,19 +374,19 @@ function moveLayer(id, dir) {
 }
 function removeWidget(id) {
   snapshot();
-  S.cfg.widgets = S.cfg.widgets.filter((w) => w.id !== id);
+  L().widgets = L().widgets.filter((w) => w.id !== id);
   if (S.selected === id) S.selected = null;
   changed({ rebuild: true });
 }
 function duplicateWidget(id) {
-  const src = S.cfg.widgets.find((w) => w.id === id);
+  const src = L().widgets.find((w) => w.id === id);
   if (!src) return;
   const copy = { ...clone(src), id: uid() };
-  const { cols, rows } = S.cfg.grid;
+  const { cols, rows } = L().grid;
   copy.x = clamp(src.x + 1, 0, cols - src.w);
   copy.y = clamp(src.y + 1, 0, rows - src.h);
   snapshot();
-  S.cfg.widgets.push(copy);
+  L().widgets.push(copy);
   S.selected = copy.id;
   changed({ rebuild: true });
 }
@@ -439,7 +452,7 @@ function widgetPanel() {
     el("button", { class: "btn", onclick: () => moveLayer(w.id, "back") }, "Arrière-plan"),
     el("button", { class: "btn danger", onclick: () => removeWidget(w.id), title: "Suppr" }, "Supprimer"),
   );
-  const { cols, rows } = S.cfg.grid;
+  const { cols, rows } = L().grid;
   const min = def.minSize || { w: 2, h: 2 };
   const posDefs = [
     { key: "x", label: "Colonne", type: "number", min: 0, max: cols - 1 },
@@ -486,13 +499,13 @@ function themePanel() {
       return el(
         "button",
         {
-          class: `preset${S.cfg.theme.preset === key ? " active" : ""}`,
+          class: `preset${L().theme.preset === key ? " active" : ""}`,
           onclick: () => {
             snapshot();
-            const keepImage = S.cfg.background.type === "image";
+            const keepImage = L().background.type === "image";
             const pc = presetConfig(key);
-            S.cfg.theme = pc.theme;
-            if (!keepImage) S.cfg.background = pc.background;
+            L().theme = pc.theme;
+            if (!keepImage) L().background = pc.background;
             changed({ rebuild: true });
           },
         },
@@ -532,9 +545,9 @@ function themePanel() {
   ];
   return [
     section("Thèmes prédéfinis", presets),
-    section("Couleurs", form(colorDefs, () => S.cfg.theme, { key: "theme" })),
-    section("Cartes", form(cardDefs, () => S.cfg.theme, { key: "theme" })),
-    section("Fond", form(bgDefs, () => S.cfg.background, { key: "bg" })),
+    section("Couleurs", form(colorDefs, () => L().theme, { key: "theme" })),
+    section("Cartes", form(cardDefs, () => L().theme, { key: "theme" })),
+    section("Fond", form(bgDefs, () => L().background, { key: "bg" })),
   ];
 }
 
@@ -545,14 +558,14 @@ function settingsPanel() {
     { key: "rows", label: "Lignes", type: "number", min: 4, max: 64 },
     { key: "gap", label: "Espacement (px)", type: "number", min: 0, max: 60 },
   ];
-  const gridForm = buildForm(gridDefs, S.cfg.grid, (k, v) => {
+  const gridForm = buildForm(gridDefs, L().grid, (k, v) => {
     snapshot();
-    const old = { ...S.cfg.grid };
-    S.cfg.grid[k] = Math.round(v);
+    const old = { ...L().grid };
+    L().grid[k] = Math.round(v);
     // Mise à l'échelle des briques pour conserver la disposition.
     if (k === "cols" || k === "rows") {
-      const f = k === "cols" ? S.cfg.grid.cols / old.cols : S.cfg.grid.rows / old.rows;
-      for (const w of S.cfg.widgets) {
+      const f = k === "cols" ? L().grid.cols / old.cols : L().grid.rows / old.rows;
+      for (const w of L().widgets) {
         if (k === "cols") {
           w.x = Math.round(w.x * f);
           w.w = Math.max(1, Math.round(w.w * f));
@@ -566,9 +579,8 @@ function settingsPanel() {
     changed({ inspector: true });
   });
   gridForm.node.classList.add("grid-3");
-  forms.push({ refresh: () => gridForm.refresh(S.cfg.grid) });
+  forms.push({ refresh: () => gridForm.refresh(L().grid) });
 
-  const monDefs = [{ key: "monitors", label: "Écrans", type: "select", choices: [["all", "Tous les écrans (même disposition)"], ["primary", "Écran principal uniquement"]] }];
 
   const autostart = el("input", { type: "checkbox", id: "autostart" });
   api.autostart().then((v) => (autostart.checked = !!v)).catch(() => {});
@@ -599,7 +611,8 @@ function settingsPanel() {
   });
 
   return [
-    section("Affichage", form(monDefs, () => S.cfg.settings, { key: "settings" })),
+    section("Écrans", screensPanel(), el("p", { class: "muted small" }, "Choisissez la disposition affichée sur chaque écran. « Aucune » laisse le papier peint de Windows.")),
+    section("Dispositions", layoutsPanel()),
     section("Grille", gridForm.node, el("p", { class: "muted small" }, "Les briques sont aimantées sur cette grille. Changer le nombre de colonnes ou de lignes redimensionne la disposition.")),
     section("Application", el("div", { class: "form" },
       toggle(autostart, "Lancer au démarrage de Windows"),
@@ -642,20 +655,161 @@ async function importLayout() {
     snapshot();
     S.cfg = cfg;
     S.selected = null;
-    fitStage();
-    changed({ rebuild: true });
+    afterStructureChange();
     toast("Disposition importée");
   } catch (e) {
     toast("Import impossible : " + e, true);
   }
 }
 function resetLayout() {
-  if (!confirm("Remplacer la disposition actuelle par celle par défaut ?")) return;
+  if (!confirm(`Remplacer le contenu de la disposition « ${L().name} » par celui par défaut ?`)) return;
   snapshot();
-  S.cfg = defaultConfig();
+  const cur = L();
+  Object.assign(cur, defaultLayout(cur.name, cur.id));
   S.selected = null;
-  fitStage();
-  changed({ rebuild: true });
+  afterStructureChange();
+}
+
+// ===========================================================================
+// Écrans et dispositions
+// ===========================================================================
+function monitorLabel(m, i) {
+  // Les noms Windows (\\.\DISPLAY1) sont peu parlants : numéro + définition.
+  const num = (m.name || "").match(/(\d+)\s*$/)?.[1] || i + 1;
+  return `Écran ${num}${m.primary ? " (principal)" : ""} — ${m.width}×${m.height}`;
+}
+
+/** Écrans qui affichent la disposition `id`. */
+function screensUsing(id) {
+  return S.monitors.filter((m) => layoutForScreen(S.cfg, monitorKey(m))?.id === id);
+}
+
+/** Ancien réglage v1 « écran principal uniquement » → affectations par écran. */
+function migrateMonitorSetting() {
+  if (S.cfg.settings.monitors === "primary" && S.monitors.length) {
+    for (const m of S.monitors) if (!m.primary) S.cfg.screens[monitorKey(m)] = "none";
+  }
+  delete S.cfg.settings.monitors;
+}
+
+function setupLayoutBar() {
+  $("#monitor").addEventListener("change", (e) => {
+    S.monitor = +e.target.value;
+    // On édite la disposition affichée sur cet écran (s'il en a une).
+    const l = layoutForScreen(S.cfg, monitorKey(S.monitors[S.monitor]));
+    if (l) S.layoutId = l.id;
+    S.selected = null;
+    afterStructureChange();
+  });
+  $("#layout").addEventListener("change", (e) => {
+    S.layoutId = e.target.value;
+    S.selected = null;
+    afterStructureChange();
+  });
+  $("#btn-new-layout").addEventListener("click", () => newLayoutForScreen());
+  renderLayoutBar();
+}
+
+function renderLayoutBar() {
+  const mon = $("#monitor");
+  mon.hidden = S.monitors.length < 2;
+  mon.replaceChildren(...S.monitors.map((m, i) => el("option", { value: i }, monitorLabel(m, i))));
+  mon.value = S.monitor;
+  const sel = $("#layout");
+  sel.replaceChildren(
+    ...S.cfg.layouts.map((l) => {
+      const used = screensUsing(l.id)
+        .map((m) => monitorLabel(m, S.monitors.indexOf(m)).split(" — ")[0].replace(" (principal)", ""))
+        .join(", ");
+      return el("option", { value: l.id }, l.name + (S.monitors.length > 1 ? ` — ${used ? "sur " + used : "non affichée"}` : ""));
+    }),
+  );
+  sel.value = L().id;
+  const m = S.monitors[S.monitor];
+  const onThis = m && layoutForScreen(S.cfg, monitorKey(m))?.id === L().id;
+  $("#layout-warn").hidden = !m || onThis || S.monitors.length < 2;
+}
+
+function uniqueName(base) {
+  const names = new Set(S.cfg.layouts.map((l) => l.name));
+  if (!names.has(base)) return base;
+  for (let i = 2; ; i++) if (!names.has(`${base} (${i})`)) return `${base} (${i})`;
+}
+
+/** Copie de la disposition courante, affectée à l'écran sélectionné. */
+function newLayoutForScreen() {
+  const m = S.monitors[S.monitor];
+  const copy = { ...clone(L()), id: uid() };
+  copy.widgets = copy.widgets.map((w) => ({ ...w, id: uid() }));
+  copy.name = uniqueName(m && S.monitors.length > 1 ? monitorLabel(m, S.monitor).split(" — ")[0].replace(" (principal)", "") : "Nouvelle disposition");
+  snapshot();
+  S.cfg.layouts.push(copy);
+  if (m && S.monitors.length > 1) S.cfg.screens[monitorKey(m)] = copy.id;
+  S.layoutId = copy.id;
+  S.selected = null;
+  afterStructureChange();
+  toast(m && S.monitors.length > 1 ? `Disposition « ${copy.name} » créée pour cet écran` : `Disposition « ${copy.name} » créée`);
+}
+
+function deleteLayout(id) {
+  if (S.cfg.layouts.length < 2) return;
+  const l = S.cfg.layouts.find((x) => x.id === id);
+  if (!confirm(`Supprimer la disposition « ${l.name} » ?`)) return;
+  snapshot();
+  S.cfg.layouts = S.cfg.layouts.filter((x) => x.id !== id);
+  for (const [k, v] of Object.entries(S.cfg.screens)) if (v === id) delete S.cfg.screens[k];
+  afterStructureChange();
+}
+
+function screensPanel() {
+  if (!S.monitors.length) return el("p", { class: "muted small" }, "Aucun écran détecté.");
+  return el(
+    "div",
+    { class: "form" },
+    ...S.monitors.map((m, i) => {
+      const id = `scr${i}`;
+      const cur = S.cfg.screens[monitorKey(m)];
+      const sel = el(
+        "select",
+        { id },
+        ...S.cfg.layouts.map((l, j) => el("option", { value: l.id }, l.name + (j === 0 ? " (par défaut)" : ""))),
+        el("option", { value: "none" }, "Aucune (papier peint Windows)"),
+      );
+      sel.value = cur === "none" ? "none" : layoutForScreen(S.cfg, monitorKey(m)).id;
+      sel.addEventListener("change", () => {
+        snapshot();
+        S.cfg.screens[monitorKey(m)] = sel.value;
+        renderLayoutBar();
+        changed();
+      });
+      return el("div", { class: "field" }, el("label", { class: "field-label", for: id }, monitorLabel(m, i)), sel);
+    }),
+  );
+}
+
+function layoutsPanel() {
+  const rows = S.cfg.layouts.map((l) => {
+    const name = el("input", { type: "text", value: l.name, "aria-label": "Nom de la disposition" });
+    name.addEventListener("input", () => {
+      snapshot(`name:${l.id}`);
+      l.name = name.value || "Sans nom";
+      renderLayoutBar();
+      changed();
+    });
+    return el(
+      "div",
+      { class: `layout-row${l.id === L().id ? " active" : ""}` },
+      name,
+      el("button", { class: "btn", title: "Modifier cette disposition", onclick: () => { S.layoutId = l.id; S.selected = null; afterStructureChange(); } }, "Éditer"),
+      el("button", { class: "btn danger", title: "Supprimer", disabled: S.cfg.layouts.length < 2, onclick: () => deleteLayout(l.id) }, "×"),
+    );
+  });
+  return el(
+    "div",
+    { class: "form" },
+    ...rows,
+    el("div", { class: "insp-actions" }, el("button", { class: "btn", onclick: newLayoutForScreen }, "Nouvelle disposition (copie)")),
+  );
 }
 
 // ===========================================================================
@@ -682,7 +836,7 @@ function setupKeyboard() {
     const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
     if (d) {
       e.preventDefault();
-      const { cols, rows } = S.cfg.grid;
+      const { cols, rows } = L().grid;
       snapshot("arrows");
       w.x = clamp(w.x + d[0], 0, cols - w.w);
       w.y = clamp(w.y + d[1], 0, rows - w.h);
@@ -704,16 +858,9 @@ async function init() {
   S.saved = loaded ? JSON.stringify(S.cfg) : "";
   S.monitors = await api.getMonitors().catch(() => []);
   S.monitor = Math.max(0, S.monitors.findIndex((m) => m.primary));
-  const sel = $("#monitor");
-  if (S.monitors.length > 1) {
-    sel.append(...S.monitors.map((m, i) => el("option", { value: i }, `${m.name || "Écran " + (i + 1)} (${m.width}×${m.height})`)));
-    sel.value = S.monitor;
-    sel.hidden = false;
-    sel.addEventListener("change", () => {
-      S.monitor = +sel.value;
-      fitStage();
-    });
-  }
+  migrateMonitorSetting();
+  S.layoutId = (layoutForScreen(S.cfg, monitorKey(S.monitors[S.monitor])) || S.cfg.layouts[0]).id;
+  setupLayoutBar();
 
   renderPalette();
   setupDrop();
@@ -730,13 +877,14 @@ async function init() {
   new ResizeObserver(fitStage).observe($("#stage"));
 
   fitStage();
-  board.render(S.cfg);
+  board.render(L());
   renderFrames();
   renderLayers();
   renderInspector();
   updateStatus();
   // Premier lancement : on enregistre la disposition par défaut pour l'afficher sur le bureau.
-  if (!loaded) apply();
+  // (ou la configuration migrée depuis une version précédente)
+  if (!loaded || isDirty()) apply();
 }
 
 init();

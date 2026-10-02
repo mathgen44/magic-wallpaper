@@ -1,6 +1,6 @@
 [package]
 name = "dynamic-background"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fond d'écran dynamique modulaire pour Windows"
 authors = ["mathgen44"]
 license = "MIT"

@@ -3,7 +3,7 @@ import { presetConfig } from "./themes.js";
 import { WIDGETS } from "./widgets/index.js";
 import { uid, clone } from "./util.js";
 
-export const CONFIG_VERSION = 1;
+export const CONFIG_VERSION = 2;
 
 export const DEFAULT_STYLE = { card: true, accent: "", scale: 1, opacity: 1 };
 
@@ -19,15 +19,16 @@ export function makeWidget(type, x = 0, y = 0) {
   return { id: uid(), type, x, y, w: w.size.w, h: w.size.h, options: defaultsFor(type), style: { ...DEFAULT_STYLE } };
 }
 
-export function defaultConfig() {
+/** Disposition par défaut (grille, thème, fond, briques). */
+export function defaultLayout(name = "Principale", id = "main") {
   const { theme, background } = presetConfig("nuit");
   const place = (type, x, y, w, h, options = {}) => ({ ...makeWidget(type, x, y), w, h, options: { ...defaultsFor(type), ...options } });
   return {
-    version: CONFIG_VERSION,
+    id,
+    name,
     grid: { cols: 48, rows: 27, gap: 14 },
     theme,
     background,
-    settings: { monitors: "all" },
     widgets: [
       place("clock", 2, 2, 15, 7),
       place("sysinfo", 36, 2, 10, 13),
@@ -37,21 +38,21 @@ export function defaultConfig() {
   };
 }
 
-/** Complète / répare une configuration chargée (anciennes versions, champs manquants). */
-export function normalize(cfg) {
-  const d = defaultConfig();
-  if (!cfg || typeof cfg !== "object") return d;
-  const out = {
-    version: CONFIG_VERSION,
-    grid: { ...d.grid, ...(cfg.grid || {}) },
-    theme: { ...d.theme, ...(cfg.theme || {}) },
-    background: { ...d.background, ...(cfg.background || {}) },
-    settings: { ...d.settings, ...(cfg.settings || {}) },
-    widgets: [],
-  };
-  for (const w of Array.isArray(cfg.widgets) ? cfg.widgets : []) {
+/**
+ * Configuration complète :
+ * - `layouts` : dispositions nommées (au moins une) ;
+ * - `screens` : affectation par nom d'écran → id de disposition, ou "none" (pas de fond).
+ *   Un écran absent utilise la première disposition.
+ */
+export function defaultConfig() {
+  return { version: CONFIG_VERSION, settings: {}, layouts: [defaultLayout()], screens: {} };
+}
+
+function normalizeWidgets(list) {
+  const out = [];
+  for (const w of Array.isArray(list) ? list : []) {
     if (!WIDGETS[w.type]) continue; // type inconnu (brique supprimée)
-    out.widgets.push({
+    out.push({
       id: w.id || uid(),
       type: w.type,
       x: +w.x || 0,
@@ -63,4 +64,47 @@ export function normalize(cfg) {
     });
   }
   return out;
+}
+
+export function normalizeLayout(l, fallbackName = "Disposition") {
+  const d = defaultLayout();
+  l = l && typeof l === "object" ? l : {};
+  return {
+    id: String(l.id || uid()),
+    name: String(l.name || fallbackName),
+    grid: { ...d.grid, ...(l.grid || {}) },
+    theme: { ...d.theme, ...(l.theme || {}) },
+    background: { ...d.background, ...(l.background || {}) },
+    widgets: normalizeWidgets(l.widgets),
+  };
+}
+
+/** Complète / répare une configuration chargée (anciennes versions, champs manquants). */
+export function normalize(cfg) {
+  if (!cfg || typeof cfg !== "object") return defaultConfig();
+  let layouts;
+  if (Array.isArray(cfg.layouts) && cfg.layouts.length) {
+    layouts = cfg.layouts.map((l, i) => normalizeLayout(l, `Disposition ${i + 1}`));
+  } else {
+    // Version 1 : une seule disposition à la racine.
+    layouts = [normalizeLayout({ ...cfg, id: "main", name: "Principale" })];
+  }
+  // Ids uniques.
+  const ids = new Set();
+  for (const l of layouts) {
+    if (ids.has(l.id)) l.id = uid();
+    ids.add(l.id);
+  }
+  const screens = {};
+  for (const [name, v] of Object.entries(cfg.screens && typeof cfg.screens === "object" ? cfg.screens : {})) {
+    if (v === "none" || ids.has(v)) screens[name] = v;
+  }
+  return { version: CONFIG_VERSION, settings: { ...(cfg.settings || {}) }, layouts, screens };
+}
+
+/** Disposition à afficher sur l'écran `name` (null = aucun fond). */
+export function layoutForScreen(cfg, name) {
+  const v = cfg.screens?.[name];
+  if (v === "none") return null;
+  return cfg.layouts.find((l) => l.id === v) || cfg.layouts[0];
 }

@@ -16,9 +16,23 @@ pub struct Rect {
     pub h: i32,
 }
 
+/// État d'une fenêtre de fond d'écran vérifié par le watchdog.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(not(windows), allow(dead_code))]
+pub enum Health {
+    /// Tout va bien.
+    Ok,
+    /// Un défaut (style, visibilité) a été corrigé sur place.
+    Repaired,
+    /// La fenêtre existe mais n'est plus attachée au bureau (Explorer redémarré…) : à ré-attacher.
+    Detached,
+    /// La fenêtre n'existe plus : à recréer.
+    Lost,
+}
+
 #[cfg(windows)]
 mod imp {
-    use super::Rect;
+    use super::{Health, Rect};
     use std::ffi::c_void;
     use windows::core::{w, BOOL, PCWSTR};
     use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, POINT, WPARAM};
@@ -94,6 +108,7 @@ mod imp {
                 let (ox, oy) = origin(progman);
                 SetWindowPos(hwnd, Some(defview), r.x - ox, r.y - oy, r.w, r.h, SWP_NOACTIVATE | SWP_SHOWWINDOW)
                     .map_err(|e| e.to_string())?;
+                let _ = ShowWindow(hwnd, SW_SHOWNA);
                 fix_zorder(hwnd, progman, defview);
                 return Ok(raw(progman));
             }
@@ -109,6 +124,7 @@ mod imp {
             let (ox, oy) = origin(workerw);
             SetWindowPos(hwnd, Some(HWND_TOP), r.x - ox, r.y - oy, r.w, r.h, SWP_NOACTIVATE | SWP_SHOWWINDOW)
                 .map_err(|e| e.to_string())?;
+            let _ = ShowWindow(hwnd, SW_SHOWNA);
             Ok(raw(workerw))
         }
     }
@@ -126,22 +142,46 @@ mod imp {
         }
     }
 
-    /// Vérifie que la fenêtre est toujours correctement attachée (Explorer peut redémarrer
-    /// ou réorganiser l'ordre Z). Répare l'ordre Z si besoin. `false` = à recréer.
-    pub fn check(hwnd_raw: isize, parent_raw: isize) -> bool {
+    /// Vérifie que la fenêtre est toujours correctement attachée et la répare si possible.
+    ///
+    /// Tauri/tao réécrit parfois le style de la fenêtre (par ex. lors d'un `show()`), ce qui
+    /// retire `WS_CHILD` : on le remet au lieu de tout recréer (sinon : clignotement).
+    pub fn check(hwnd_raw: isize, parent_raw: isize) -> Health {
         unsafe {
             let hwnd = h(hwnd_raw);
             let parent = h(parent_raw);
-            if !IsWindow(Some(hwnd)).as_bool() || !IsWindow(Some(parent)).as_bool() {
-                return false;
+            if !IsWindow(Some(hwnd)).as_bool() {
+                return Health::Lost;
             }
-            if GetParent(hwnd).ok() != Some(parent) {
-                return false;
+            if !IsWindow(Some(parent)).as_bool() || GetAncestor(hwnd, GA_PARENT) != parent {
+                return Health::Detached;
             }
-            if let Some(defview) = find_child(Some(parent), None, w!("SHELLDLL_DefView")) {
+            let defview = find_child(Some(parent), None, w!("SHELLDLL_DefView"));
+            let mut health = Health::Ok;
+            let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
+            if style & WS_CHILD.0 == 0 || style & WS_POPUP.0 != 0 {
+                make_child(hwnd, defview.is_some());
+                health = Health::Repaired;
+            }
+            if !IsWindowVisible(hwnd).as_bool() {
+                let _ = ShowWindow(hwnd, SW_SHOWNA);
+                health = Health::Repaired;
+            }
+            if let Some(defview) = defview {
                 fix_zorder(hwnd, parent, defview);
             }
-            true
+            health
+        }
+    }
+
+    /// Décrit l'organisation du bureau détectée (pour le journal).
+    pub fn describe(parent_raw: isize) -> &'static str {
+        unsafe {
+            if find_child(Some(h(parent_raw)), None, w!("SHELLDLL_DefView")).is_some() {
+                "Progman (Windows 11 24H2+)"
+            } else {
+                "WorkerW (classique)"
+            }
         }
     }
 
@@ -172,12 +212,15 @@ mod imp {
 #[cfg(not(windows))]
 mod imp {
     //! Hors Windows (développement) : la fenêtre reste une fenêtre normale.
-    use super::Rect;
+    use super::{Health, Rect};
     pub fn attach(_hwnd: isize, _r: Rect) -> Result<isize, String> {
         Ok(0)
     }
-    pub fn check(_hwnd: isize, _parent: isize) -> bool {
-        true
+    pub fn check(_hwnd: isize, _parent: isize) -> Health {
+        Health::Ok
+    }
+    pub fn describe(_parent: isize) -> &'static str {
+        "aucun (hors Windows)"
     }
     pub fn refresh_wallpaper() {}
 }

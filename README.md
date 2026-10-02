@@ -4,7 +4,7 @@ Fond d'écran dynamique et modulaire pour Windows 10 / 11. On compose son bureau
 
 - Éditeur glisser-déposer : on place, déplace et redimensionne les briques sur une grille aimantée
 - Thèmes prêts à l'emploi (Nuit, Aurore, Forêt, Néon, Graphite, Océan, Terminal), entièrement personnalisables : couleurs, transparence, flou, arrondis, police, fond (couleur, dégradé ou image)
-- Multi-écrans : la même disposition sur tous les écrans, ou seulement sur l'écran principal
+- Multi-écrans : plusieurs dispositions nommées, chacune affectée à un ou plusieurs écrans (ou aucun fond sur un écran donné)
 - Léger : application Tauri (Rust + WebView2), installeur de quelques Mo, sans droits administrateur
 - Vit dans la zone de notification : éditeur, pause, rechargement, démarrage avec Windows
 
@@ -22,6 +22,7 @@ WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon l'installeur
 
 - **Icône de la zone de notification** : clic gauche = éditeur ; clic droit = pause, recharger, quitter.
 - **Ajouter une brique** : cliquez dessus dans la palette de gauche, ou glissez-la sur l'aperçu.
+- **Une disposition par écran** : choisissez l'écran dans la barre du haut puis cliquez sur **+** pour lui créer sa propre disposition (copie de l'actuelle). Les affectations se règlent dans *Réglages → Écrans*.
 - **Déplacer / redimensionner** : à la souris sur l'aperçu, ou avec les champs *Position* de l'inspecteur.
 - **Raccourcis** : flèches (Maj = ×4), Suppr, Ctrl+D (dupliquer), Ctrl+Z / Ctrl+Y, Ctrl+S (appliquer).
 - Par défaut, chaque modification est appliquée en direct sur le bureau (désactivable dans *Réglages*).
@@ -80,7 +81,7 @@ La configuration est enregistrée dans `%APPDATA%\com.mathgen44.dynamicbackgroun
 - **Classique** (Windows 10, Windows 11 avant 24H2) : le message `0x052C` envoyé à `Progman` fait créer à Explorer un calque `WorkerW` derrière les icônes ; la fenêtre du fond y est attachée.
 - **Windows 11 24H2+** : les icônes (`SHELLDLL_DefView`) et le papier peint sont des enfants de `Progman`. La fenêtre devient un enfant *layered* de `Progman`, placé dans l'ordre Z juste sous les icônes.
 
-Une surveillance toutes les 3 s recrée les fenêtres si Explorer redémarre ou si les écrans changent, et répare l'ordre Z. En cas d'échec, le fond s'affiche comme une fenêtre « toujours en arrière-plan » et le journal (*Réglages → Journal de diagnostic*) indique pourquoi.
+Une surveillance toutes les 3 s répare sur place le style, la visibilité et l'ordre Z des fenêtres, les ré-attache si Explorer redémarre et ne les recrée que si les écrans changent ou si une fenêtre a disparu. En cas d'échec, le fond s'affiche comme une fenêtre « toujours en arrière-plan » et le journal (*Réglages → Journal de diagnostic*) indique pourquoi.
 
 ## Créer une nouvelle brique
 

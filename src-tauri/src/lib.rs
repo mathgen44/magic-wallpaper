@@ -37,6 +37,7 @@ struct Wall {
     label: String,
     hwnd: isize,
     parent: isize,
+    rect: desktop::Rect,
 }
 
 #[derive(Default)]
@@ -89,8 +90,18 @@ fn monitor_signature(app: &AppHandle) -> String {
         .join("|")
 }
 
-fn create_wall(app: &AppHandle, label: &str, index: usize, rect: desktop::Rect) -> Result<Wall, String> {
-    let url = WebviewUrl::App(format!("wallpaper.html?screen={index}").into());
+/// Encodage minimal pour passer le nom de l'écran (ex. `\\.\DISPLAY1`) dans l'URL.
+fn url_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+fn create_wall(app: &AppHandle, label: &str, index: usize, name: &str, rect: desktop::Rect) -> Result<Wall, String> {
+    let url = WebviewUrl::App(format!("wallpaper.html?screen={index}&name={}", url_encode(name)).into());
     let win = WebviewWindowBuilder::new(app, label, url)
         .title("Dynamic Background")
         .decorations(false)
@@ -99,11 +110,14 @@ fn create_wall(app: &AppHandle, label: &str, index: usize, rect: desktop::Rect) 
         .focused(false)
         .visible(false)
         .shadow(false)
-        .always_on_bottom(true)
         .build()
         .map_err(|e| e.to_string())?;
-    let _ = win.set_position(PhysicalPosition::new(rect.x, rect.y));
+    // NB : pas de `always_on_bottom` (tao forcerait la fenêtre sous le papier peint d'Explorer).
+    // On affiche la fenêtre hors écran AVANT de l'attacher : un `show()` ultérieur de tao
+    // réécrirait son style et la détacherait du bureau.
     let _ = win.set_size(PhysicalSize::new(rect.w as u32, rect.h as u32));
+    let _ = win.set_position(PhysicalPosition::new(-32000, -32000));
+    let _ = win.show();
 
     #[cfg(windows)]
     let hwnd = win.hwnd().map(|h| h.0 as isize).map_err(|e| e.to_string())?;
@@ -114,44 +128,62 @@ fn create_wall(app: &AppHandle, label: &str, index: usize, rect: desktop::Rect) 
         Ok(p) => p,
         Err(e) => {
             log(app, format!("Attache au bureau impossible ({e}) : affichage en fenêtre de fond simple"));
+            let _ = win.set_always_on_bottom(true);
+            let _ = win.set_position(PhysicalPosition::new(rect.x, rect.y));
             0
         }
     };
-    let _ = win.show();
     if parent != 0 {
-        desktop::check(hwnd, parent); // ré-ordonne après le show()
+        desktop::check(hwnd, parent);
     }
-    log(app, format!("{label} : écran {index} {rect:?}, parent={parent:#x}"));
-    Ok(Wall { label: label.to_string(), hwnd, parent })
+    log(app, format!("{label} : écran {index} « {name} » {rect:?}, parent={parent:#x} [{}]", desktop::describe(parent)));
+    Ok(Wall { label: label.to_string(), hwnd, parent, rect })
 }
 
 /// (Re)crée toutes les fenêtres de fond d'écran. À appeler sur le thread principal.
-fn rebuild(app: &AppHandle) {
-    let st = app.state::<AppState>();
-    let old: Vec<Wall> = st.walls.lock().unwrap().drain(..).collect();
-    for w in old {
+fn destroy_walls(app: &AppHandle, walls: Vec<Wall>) {
+    for w in walls {
         if let Some(win) = app.get_webview_window(&w.label) {
             let _ = win.destroy();
         }
     }
+}
+
+/// Noms des écrans sur lesquels un fond doit être affiché, d'après la configuration.
+fn enabled_screens(app: &AppHandle, cfg: &Option<Value>) -> Vec<String> {
+    let primary = app.primary_monitor().ok().flatten().map(|p| *p.position());
+    app.available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .filter(|m| config::screen_enabled(cfg, &monitor_name(m), Some(*m.position()) == primary))
+        .map(monitor_name)
+        .collect()
+}
+
+fn monitor_name(m: &tauri::Monitor) -> String {
+    m.name().cloned().unwrap_or_default()
+}
+
+fn rebuild(app: &AppHandle) {
+    let st = app.state::<AppState>();
+    // Les anciennes fenêtres sont détruites après la création des nouvelles (moins de clignotement).
+    let old: Vec<Wall> = st.walls.lock().unwrap().drain(..).collect();
     *st.monitor_sig.lock().unwrap() = monitor_signature(app);
     if st.paused.load(Ordering::SeqCst) {
+        destroy_walls(app, old);
         desktop::refresh_wallpaper();
         return;
     }
 
-    let mode = config::monitor_mode(&config::load(app));
+    let cfg = config::load(app);
     let monitors = app.available_monitors().unwrap_or_default();
-    let primary = app.primary_monitor().ok().flatten();
+    let primary = app.primary_monitor().ok().flatten().map(|p| *p.position());
     let gen = st.generation.fetch_add(1, Ordering::SeqCst) + 1;
     let mut walls = Vec::new();
     for (i, m) in monitors.iter().enumerate() {
-        if mode == "primary" {
-            if let Some(p) = &primary {
-                if p.position() != m.position() {
-                    continue;
-                }
-            }
+        let name = monitor_name(m);
+        if !config::screen_enabled(&cfg, &name, Some(*m.position()) == primary) {
+            continue;
         }
         let rect = desktop::Rect {
             x: m.position().x,
@@ -159,12 +191,15 @@ fn rebuild(app: &AppHandle) {
             w: m.size().width as i32,
             h: m.size().height as i32,
         };
-        match create_wall(app, &format!("wallpaper-{gen}-{i}"), i, rect) {
+        match create_wall(app, &format!("wallpaper-{gen}-{i}"), i, &name, rect) {
             Ok(w) => walls.push(w),
             Err(e) => log(app, format!("Création de la fenêtre écran {i} impossible : {e}")),
         }
     }
     *st.walls.lock().unwrap() = walls;
+    destroy_walls(app, old);
+    // Si aucun fond n'est affiché sur un écran, on y remet le papier peint Windows.
+    desktop::refresh_wallpaper();
 }
 
 fn schedule_rebuild(app: &AppHandle) {
@@ -173,24 +208,69 @@ fn schedule_rebuild(app: &AppHandle) {
 }
 
 /// Surveille les changements d'écrans et les redémarrages d'Explorer.
+/// Les défauts mineurs sont réparés sur place ; on ne recrée les fenêtres qu'en dernier recours.
 fn spawn_watchdog(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(3));
-        let st = app.state::<AppState>();
-        if st.paused.load(Ordering::SeqCst) {
-            continue;
-        }
-        let sig_changed = *st.monitor_sig.lock().unwrap() != monitor_signature(&app);
-        let broken = {
-            let walls = st.walls.lock().unwrap();
-            walls.iter().any(|w| {
-                app.get_webview_window(&w.label).is_none()
-                    || (w.parent != 0 && !desktop::check(w.hwnd, w.parent))
-            })
-        };
-        if sig_changed || broken {
-            log(&app, format!("Reconstruction des fonds (écrans modifiés={sig_changed}, fenêtre perdue={broken})"));
-            schedule_rebuild(&app);
+    std::thread::spawn(move || {
+        let mut repairs_logged = 0u32;
+        loop {
+            std::thread::sleep(Duration::from_secs(3));
+            let st = app.state::<AppState>();
+            if st.paused.load(Ordering::SeqCst) {
+                continue;
+            }
+            if *st.monitor_sig.lock().unwrap() != monitor_signature(&app) {
+                log(&app, "Configuration des écrans modifiée : reconstruction des fonds");
+                schedule_rebuild(&app);
+                continue;
+            }
+            let walls: Vec<(String, isize, isize, desktop::Rect)> = st
+                .walls
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|w| (w.label.clone(), w.hwnd, w.parent, w.rect))
+                .collect();
+            let mut lost = false;
+            for (label, hwnd, parent, rect) in walls {
+                if app.get_webview_window(&label).is_none() {
+                    lost = true;
+                    continue;
+                }
+                if parent == 0 {
+                    continue;
+                }
+                match desktop::check(hwnd, parent) {
+                    desktop::Health::Ok => {}
+                    desktop::Health::Repaired => {
+                        // Journal limité pour ne pas le remplir si la réparation se répète.
+                        if repairs_logged < 5 {
+                            repairs_logged += 1;
+                            log(&app, format!("{label} : style ou visibilité réparé(e) sur place"));
+                        }
+                    }
+                    desktop::Health::Detached => {
+                        let a = app.clone();
+                        let _ = app.run_on_main_thread(move || match desktop::attach(hwnd, rect) {
+                            Ok(p) => {
+                                let st = a.state::<AppState>();
+                                if let Some(w) = st.walls.lock().unwrap().iter_mut().find(|w| w.label == label) {
+                                    w.parent = p;
+                                }
+                                log(&a, format!("{label} : ré-attachée au bureau [{}]", desktop::describe(p)));
+                            }
+                            Err(e) => {
+                                log(&a, format!("{label} : ré-attache impossible ({e}), reconstruction"));
+                                rebuild(&a);
+                            }
+                        });
+                    }
+                    desktop::Health::Lost => lost = true,
+                }
+            }
+            if lost {
+                log(&app, "Fenêtre de fond perdue : reconstruction");
+                schedule_rebuild(&app);
+            }
         }
     });
 }
@@ -230,10 +310,10 @@ fn get_config(app: AppHandle) -> Option<Value> {
 
 #[tauri::command]
 async fn save_config(app: AppHandle, config: Value) -> Result<(), String> {
-    let before = config::monitor_mode(&config::load(&app));
+    let before = enabled_screens(&app, &config::load(&app));
     config::store(&app, &config)?;
     app.emit("config-changed", &config).map_err(|e| e.to_string())?;
-    if before != config::monitor_mode(&Some(config)) {
+    if before != enabled_screens(&app, &Some(config)) {
         schedule_rebuild(&app);
     }
     Ok(())
@@ -246,6 +326,8 @@ struct MonitorInfo {
     height: u32,
     scale: f64,
     primary: bool,
+    x: i32,
+    y: i32,
 }
 
 #[tauri::command]
@@ -260,6 +342,8 @@ fn get_monitors(app: AppHandle) -> Vec<MonitorInfo> {
             height: m.size().height,
             scale: m.scale_factor(),
             primary: Some(*m.position()) == primary,
+            x: m.position().x,
+            y: m.position().y,
         })
         .collect()
 }

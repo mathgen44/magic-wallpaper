@@ -33,11 +33,32 @@ pub fn store(app: &AppHandle, value: &Value) -> Result<(), String> {
     fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
-/// Mode d'affichage multi-écrans : "all" (défaut) ou "primary".
-pub fn monitor_mode(cfg: &Option<Value>) -> String {
-    cfg.as_ref()
-        .and_then(|c| c.pointer("/settings/monitors"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("all")
-        .to_string()
+/// Un fond doit-il être affiché sur l'écran `name` ?
+/// * `screens[name] == "none"` : non (le papier peint Windows reste visible) ;
+/// * écran absent de `screens` : oui, sauf ancien réglage « écran principal uniquement ».
+pub fn screen_enabled(cfg: &Option<Value>, name: &str, primary: bool) -> bool {
+    let Some(c) = cfg.as_ref() else { return true };
+    if let Some(v) = c.get("screens").and_then(|s| s.get(name)) {
+        return v.as_str() != Some("none");
+    }
+    let legacy = c.pointer("/settings/monitors").and_then(|v| v.as_str());
+    primary || legacy != Some("primary")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn screens() {
+        assert!(screen_enabled(&None, "A", false));
+        let c = Some(json!({ "screens": { "A": "none", "B": "l2" } }));
+        assert!(!screen_enabled(&c, "A", true));
+        assert!(screen_enabled(&c, "B", false));
+        assert!(screen_enabled(&c, "C", false));
+        let legacy = Some(json!({ "settings": { "monitors": "primary" } }));
+        assert!(screen_enabled(&legacy, "X", true));
+        assert!(!screen_enabled(&legacy, "Y", false));
+    }
 }
