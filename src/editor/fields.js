@@ -1,6 +1,7 @@
 // Générateur de formulaires à partir des descriptions de champs des briques.
 import { api } from "../api.js";
 import { el } from "../util.js";
+import { searchPlaces } from "../widgets/location.js";
 
 let seq = 0;
 
@@ -139,6 +140,52 @@ function control(def, value, emit, id) {
       return {
         node: el("div", { class: "checklist", id }, ...boxes.map((b) => b.node)),
         set: (vals) => boxes.forEach((b, i) => (b.cb.checked = (vals || []).includes(def.choices[i][0]))),
+      };
+    }
+    case "location": {
+      let cur = value || { mode: "auto" };
+      const mode = el("select", { id }, el("option", { value: "auto" }, "Automatique (selon la connexion internet)"), el("option", { value: "city" }, "Choisir une ville…"));
+      const q = el("input", { type: "text", placeholder: "Nom de la ville", spellcheck: false });
+      const go = el("button", { class: "btn" }, "Rechercher");
+      const results = el("div", { class: "loc-results" });
+      const box = el("div", { class: "loc-search" }, el("div", { class: "picker" }, q, go), results);
+      const current = el("div", { class: "field-hint" });
+      const sync = () => {
+        mode.value = cur.mode === "city" ? "city" : "auto";
+        box.hidden = mode.value !== "city";
+        current.textContent = mode.value === "city" ? (cur.name ? `Lieu choisi : ${cur.name}` : "Recherchez puis choisissez une ville.") : "Position approximative déduite de l'adresse IP.";
+      };
+      mode.addEventListener("change", () => {
+        cur = mode.value === "auto" ? { mode: "auto" } : { ...cur, mode: "city" };
+        sync();
+        if (cur.mode === "auto" || Number.isFinite(cur.lat)) emit(cur);
+      });
+      const search = async () => {
+        const text = q.value.trim();
+        if (!text) return;
+        results.replaceChildren(el("div", { class: "muted small" }, "Recherche…"));
+        try {
+          const list = await searchPlaces(text, api);
+          results.replaceChildren(
+            ...(list.length
+              ? list.map((p) => el("button", { class: "loc-item", onclick: () => { cur = p; results.replaceChildren(); q.value = ""; sync(); emit(cur); } }, p.name))
+              : [el("div", { class: "muted small" }, "Aucun résultat.")]),
+          );
+        } catch (e) {
+          results.replaceChildren(el("div", { class: "muted small" }, "Recherche impossible : " + e));
+        }
+      };
+      go.addEventListener("click", search);
+      q.addEventListener("keydown", (e) => e.key === "Enter" && (e.preventDefault(), search()));
+      sync();
+      return {
+        node: el("div", { class: "loc" }, mode, box, current),
+        set: (v) => {
+          if (JSON.stringify(v || { mode: "auto" }) !== JSON.stringify(cur)) {
+            cur = v || { mode: "auto" };
+            sync();
+          }
+        },
       };
     }
     case "folder":

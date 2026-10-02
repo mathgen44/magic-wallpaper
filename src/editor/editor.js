@@ -140,7 +140,8 @@ function fitStage() {
   screen.style.width = `${w}px`;
   screen.style.height = `${h}px`;
   screen.style.transform = `translate(-50%, -50%) scale(${k})`;
-  $("#zoom").textContent = `${w} × ${h} · ${Math.round(k * 100)} %`;
+  const m = S.monitors[S.monitor];
+  $("#zoom").textContent = `${m && S.monitors.length > 1 ? "Aperçu " + shortMonitorLabel(m, S.monitor) + " · " : ""}${Math.round(k * 100)} %`;
   const { cols, rows } = L().grid;
   $("#grid").style.backgroundSize = `${100 / cols}% ${100 / rows}%`;
 }
@@ -692,42 +693,64 @@ function migrateMonitorSetting() {
   delete S.cfg.settings.monitors;
 }
 
+function shortMonitorLabel(m, i) {
+  return monitorLabel(m, i).split(" — ")[0].replace(" (principal)", "");
+}
+
+/** Écran utilisé pour l'aperçu : le premier qui affiche la disposition, sinon le principal. */
+function previewMonitor() {
+  const i = S.monitors.findIndex((m) => layoutForScreen(S.cfg, monitorKey(m))?.id === L().id);
+  if (i >= 0) return i;
+  return Math.max(0, S.monitors.findIndex((m) => m.primary));
+}
+
 function setupLayoutBar() {
-  $("#monitor").addEventListener("change", (e) => {
-    S.monitor = +e.target.value;
-    // On édite la disposition affichée sur cet écran (s'il en a une).
-    const l = layoutForScreen(S.cfg, monitorKey(S.monitors[S.monitor]));
-    if (l) S.layoutId = l.id;
-    S.selected = null;
-    afterStructureChange();
-  });
   $("#layout").addEventListener("change", (e) => {
     S.layoutId = e.target.value;
     S.selected = null;
     afterStructureChange();
   });
-  $("#btn-new-layout").addEventListener("click", () => newLayoutForScreen());
+  $("#btn-new-layout").addEventListener("click", () => newLayout());
   renderLayoutBar();
 }
 
+/** Active / désactive la disposition courante sur un écran. */
+function toggleScreen(m) {
+  const key = monitorKey(m);
+  const on = layoutForScreen(S.cfg, key)?.id === L().id;
+  snapshot();
+  S.cfg.screens[key] = on ? "none" : L().id;
+  if (!on) toast(`« ${L().name} » affichée sur ${shortMonitorLabel(m, S.monitors.indexOf(m))}`);
+  renderLayoutBar();
+  fitStage();
+  changed({ rebuild: S.tab === "settings" });
+}
+
 function renderLayoutBar() {
-  const mon = $("#monitor");
-  mon.hidden = S.monitors.length < 2;
-  mon.replaceChildren(...S.monitors.map((m, i) => el("option", { value: i }, monitorLabel(m, i))));
-  mon.value = S.monitor;
   const sel = $("#layout");
-  sel.replaceChildren(
-    ...S.cfg.layouts.map((l) => {
-      const used = screensUsing(l.id)
-        .map((m) => monitorLabel(m, S.monitors.indexOf(m)).split(" — ")[0].replace(" (principal)", ""))
-        .join(", ");
-      return el("option", { value: l.id }, l.name + (S.monitors.length > 1 ? ` — ${used ? "sur " + used : "non affichée"}` : ""));
+  sel.replaceChildren(...S.cfg.layouts.map((l) => el("option", { value: l.id }, l.name)));
+  sel.value = L().id;
+  S.monitor = previewMonitor();
+  const chips = $("#layout-screens");
+  chips.replaceChildren(
+    el("span", { class: "muted small" }, "Affichée sur"),
+    ...S.monitors.map((m, i) => {
+      const cur = layoutForScreen(S.cfg, monitorKey(m));
+      const on = cur?.id === L().id;
+      const title = on
+        ? `${monitorLabel(m, i)}\nCliquer pour ne plus afficher cette disposition sur cet écran`
+        : `${monitorLabel(m, i)}\nActuellement : ${cur ? "« " + cur.name + " »" : "aucune disposition"}\nCliquer pour y afficher « ${L().name} »`;
+      return el(
+        "button",
+        { class: `chip${on ? " on" : ""}`, title, "aria-pressed": on ? "true" : "false", onclick: () => toggleScreen(m) },
+        el("span", { class: "chip-check" }, on ? "✓" : ""),
+        shortMonitorLabel(m, i),
+        el("span", { class: "chip-res" }, `${m.width}×${m.height}`),
+      );
     }),
   );
-  sel.value = L().id;
-  const m = S.monitors[S.monitor];
-  const onThis = m && layoutForScreen(S.cfg, monitorKey(m))?.id === L().id;
-  $("#layout-warn").hidden = !m || onThis || S.monitors.length < 2;
+  if (!S.monitors.some((m) => layoutForScreen(S.cfg, monitorKey(m))?.id === L().id))
+    chips.append(el("span", { class: "warn small" }, "non affichée"));
 }
 
 function uniqueName(base) {
@@ -736,19 +759,17 @@ function uniqueName(base) {
   for (let i = 2; ; i++) if (!names.has(`${base} (${i})`)) return `${base} (${i})`;
 }
 
-/** Copie de la disposition courante, affectée à l'écran sélectionné. */
-function newLayoutForScreen() {
-  const m = S.monitors[S.monitor];
+/** Nouvelle disposition (copie de la courante), à activer ensuite sur les écrans voulus. */
+function newLayout() {
   const copy = { ...clone(L()), id: uid() };
   copy.widgets = copy.widgets.map((w) => ({ ...w, id: uid() }));
-  copy.name = uniqueName(m && S.monitors.length > 1 ? monitorLabel(m, S.monitor).split(" — ")[0].replace(" (principal)", "") : "Nouvelle disposition");
+  copy.name = uniqueName(`Disposition ${S.cfg.layouts.length + 1}`);
   snapshot();
   S.cfg.layouts.push(copy);
-  if (m && S.monitors.length > 1) S.cfg.screens[monitorKey(m)] = copy.id;
   S.layoutId = copy.id;
   S.selected = null;
   afterStructureChange();
-  toast(m && S.monitors.length > 1 ? `Disposition « ${copy.name} » créée pour cet écran` : `Disposition « ${copy.name} » créée`);
+  toast(`« ${copy.name} » créée : choisissez les écrans où l'afficher (en haut)`);
 }
 
 function deleteLayout(id) {
@@ -808,7 +829,7 @@ function layoutsPanel() {
     "div",
     { class: "form" },
     ...rows,
-    el("div", { class: "insp-actions" }, el("button", { class: "btn", onclick: newLayoutForScreen }, "Nouvelle disposition (copie)")),
+    el("div", { class: "insp-actions" }, el("button", { class: "btn", onclick: newLayout }, "Nouvelle disposition (copie)")),
   );
 }
 
@@ -857,9 +878,9 @@ async function init() {
   S.cfg = normalize(loaded);
   S.saved = loaded ? JSON.stringify(S.cfg) : "";
   S.monitors = await api.getMonitors().catch(() => []);
-  S.monitor = Math.max(0, S.monitors.findIndex((m) => m.primary));
+  const primary = S.monitors.find((m) => m.primary) || S.monitors[0];
   migrateMonitorSetting();
-  S.layoutId = (layoutForScreen(S.cfg, monitorKey(S.monitors[S.monitor])) || S.cfg.layouts[0]).id;
+  S.layoutId = (layoutForScreen(S.cfg, monitorKey(primary)) || S.cfg.layouts[0]).id;
   setupLayoutBar();
 
   renderPalette();

@@ -9,11 +9,16 @@
 //! * des commandes Rust pour ce que la WebView ne sait pas faire seule : infos système,
 //!   lecture des flux RSS (CORS), listing de dossiers d'images, stockage de la config.
 
+mod audio;
 mod config;
 mod desktop;
 mod feeds;
+mod gpu;
+mod ics;
 mod images;
 mod input;
+mod media;
+mod net;
 mod sysmon;
 
 use serde::Serialize;
@@ -397,6 +402,73 @@ fn import_config(path: String) -> Result<Value, String> {
     serde_json::from_str(&raw).map_err(|e| format!("Fichier invalide : {e}"))
 }
 
+/// JSON d'un service autorisé (météo, géolocalisation, LibreHardwareMonitor…), avec cache.
+#[tauri::command]
+async fn http_json(http: State<'_, Http>, cache: State<'_, net::NetCache>, url: String, ttl: Option<u64>) -> Result<Value, String> {
+    net::get_json(&http.0, &cache, &url, Duration::from_secs(ttl.unwrap_or(60))).await
+}
+
+#[derive(Serialize)]
+struct CalendarResult {
+    events: Vec<ics::Event>,
+    names: Vec<String>,
+    errors: Vec<String>,
+}
+
+/// Événements des agendas iCal `urls` entre maintenant (début de journée) et `days` jours.
+#[tauri::command]
+async fn calendar_events(http: State<'_, Http>, cache: State<'_, net::NetCache>, urls: Vec<String>, days: u32) -> Result<CalendarResult, String> {
+    let now = chrono::Local::now();
+    let from = now
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .and_then(|d| d.and_local_timezone(chrono::Local).earliest())
+        .map(|d| d.with_timezone(&chrono::Utc))
+        .unwrap_or_else(chrono::Utc::now);
+    let to = from + chrono::Duration::days(days.clamp(1, 62) as i64);
+    let mut res = CalendarResult { events: Vec::new(), names: Vec::new(), errors: Vec::new() };
+    for (i, raw) in urls.iter().enumerate() {
+        let url = raw.trim().replacen("webcal://", "https://", 1);
+        if !url.starts_with("https://") && !url.starts_with("http://") {
+            res.names.push(String::new());
+            res.errors.push(format!("Adresse invalide : {raw}"));
+            continue;
+        }
+        match net::get_text(&http.0, &cache, &url, Duration::from_secs(600)).await {
+            Ok(text) if text.contains("BEGIN:VCALENDAR") => {
+                res.names.push(ics::calendar_name(&text).unwrap_or_default());
+                res.events.extend(ics::events_between(&text, i, from, to));
+            }
+            Ok(_) => {
+                res.names.push(String::new());
+                res.errors.push("Ce n'est pas un agenda iCal (.ics)".into());
+            }
+            Err(e) => {
+                res.names.push(String::new());
+                res.errors.push(e);
+            }
+        }
+    }
+    res.events.sort_by_key(|e| (e.start, !e.all_day));
+    Ok(res)
+}
+
+/// Maintient la capture audio active (à appeler régulièrement par les visualiseurs).
+#[tauri::command]
+fn audio_keepalive(app: AppHandle, state: State<'_, audio::AudioState>) {
+    state.keepalive(&app);
+}
+
+#[tauri::command]
+fn media_info(state: State<'_, media::MediaState>) -> media::MediaInfo {
+    state.info()
+}
+
+#[tauri::command]
+fn media_control(state: State<'_, media::MediaState>, action: String) -> Result<(), String> {
+    state.control(&action)
+}
+
 /// Ouvre une page web dans le navigateur par défaut (articles RSS…).
 #[tauri::command]
 fn open_url(app: AppHandle, url: String) -> Result<(), String> {
@@ -472,6 +544,9 @@ pub fn run() {
         .manage(AppState::default())
         .manage(sysmon::SysState::new())
         .manage(Http(feeds::client()))
+        .manage(net::NetCache::default())
+        .manage(media::MediaState::default())
+        .manage(audio::AudioState::default())
         .invoke_handler(tauri::generate_handler![
             get_config,
             save_config,
@@ -485,6 +560,11 @@ pub fn run() {
             reload_wallpapers,
             read_log,
             open_url,
+            http_json,
+            media_info,
+            calendar_events,
+            audio_keepalive,
+            media_control,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

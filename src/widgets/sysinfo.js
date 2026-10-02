@@ -7,10 +7,37 @@ const svg = (tag, attrs = {}) => {
   return e;
 };
 
+/** Températures CPU / GPU lues dans le JSON du serveur web de LibreHardwareMonitor. */
+export function lhmTemps(root) {
+  const cpu = [];
+  const gpu = [];
+  const walk = (node, hw) => {
+    if (!node || typeof node !== "object") return;
+    const img = (node.ImageURL || "").toLowerCase();
+    if (/cpu/.test(img)) hw = "cpu";
+    else if (/nvidia|ati|amd|gpu|intel/.test(img)) hw = "gpu";
+    const id = (node.SensorId || "").toLowerCase();
+    const v = typeof node.Value === "string" && node.Value.includes("°C") ? parseFloat(node.Value.replace(",", ".")) : NaN;
+    if (Number.isFinite(v)) {
+      const kind = /cpu/.test(id) && !/gpu/.test(id) ? "cpu" : /gpu/.test(id) ? "gpu" : hw;
+      if (!id || id.includes("/temperature/")) (kind === "cpu" ? cpu : kind === "gpu" ? gpu : []).push([node.Text || "", v]);
+    }
+    for (const c of node.Children || []) walk(c, hw);
+  };
+  walk(root, null);
+  const best = (list, re) => (list.find(([t]) => re.test(t)) || list.reduce((m, x) => (!m || x[1] > m[1] ? x : m), null))?.[1] ?? null;
+  return { cpu: best(cpu, /package|tctl|tdie/i), gpu: best(gpu.filter(([t]) => !/hot ?spot|memory|junction/i.test(t)), /gpu core|^gpu$/i) ?? best(gpu, /gpu/i) };
+}
+
+const fmtTemp = (t) => (t == null ? "—" : `${Math.round(t)} °C`);
+
 const METRICS = [
   ["cpu", "Processeur"],
   ["cores", "Cœurs (détail)"],
   ["ram", "Mémoire"],
+  ["gpu", "Carte graphique (utilisation)"],
+  ["vram", "Mémoire vidéo (VRAM)"],
+  ["temps", "Températures CPU / GPU"],
   ["disk", "Disques"],
   ["net", "Réseau"],
   ["uptime", "Temps de fonctionnement"],
@@ -81,6 +108,8 @@ export default {
     { key: "disks", label: "Disques à afficher", type: "text", default: "", hint: "Ex. : C: D:  — vide = tous", showIf: (o) => (o.metrics || []).includes("disk") },
     { key: "style", label: "Style", type: "select", default: "bars", choices: [["bars", "Barres"], ["rings", "Anneaux"], ["minimal", "Texte compact"]] },
     { key: "history", label: "Courbes d'historique (CPU, réseau)", type: "toggle", default: true, showIf: (o) => o.style !== "minimal" },
+    { key: "lhm", label: "Températures via LibreHardwareMonitor", type: "toggle", default: false, hint: "Windows n'expose souvent pas la température du processeur : lancez LibreHardwareMonitor avec « Remote Web Server » activé.", showIf: (o) => (o.metrics || []).includes("temps") },
+    { key: "lhmUrl", label: "Adresse de LibreHardwareMonitor", type: "text", default: "http://localhost:8085/data.json", showIf: (o) => o.lhm && (o.metrics || []).includes("temps") },
     { key: "refresh", label: "Actualisation (s)", type: "number", default: 2, min: 1, max: 60 },
   ],
   mount(body, o, ctx) {
@@ -132,6 +161,19 @@ export default {
         if (m) grid.append((parts.ram = meter(m, "RAM")).node);
         else grid.append((parts.ram = line("RAM")).row);
       }
+      // Cartes graphiques : on ignore les petites puces intégrées s'il y a une carte dédiée.
+      const big = d.gpus.filter((g) => g.vram_total >= 1024 ** 3);
+      const gpus = big.length ? big : d.gpus;
+      const gpuLabel = (g) => (gpus.length > 1 ? g.name.replace(/^(NVIDIA|AMD|Intel\(R\))\s+(GeForce\s+|Radeon\s+)?/i, "") : "GPU");
+      parts.gpuList = gpus;
+      if (has("gpu")) parts.gpu = gpus.map((g) => (m ? meter(m, gpuLabel(g)) : line(gpuLabel(g))));
+      if (has("vram")) parts.vram = gpus.map((g) => (m ? meter(m, gpus.length > 1 ? `VRAM ${gpuLabel(g)}` : "VRAM") : line("VRAM")));
+      for (const x of [...(parts.gpu || []), ...(parts.vram || [])]) grid.append(x.node || x.row);
+      if (has("temps")) {
+        parts.tcpu = m ? meter(m, "CPU °C") : line("CPU");
+        parts.tgpu = m ? meter(m, "GPU °C") : line("GPU");
+        for (const x of [parts.tcpu, parts.tgpu]) grid.append(x.node || x.row);
+      }
       if (has("disk")) {
         parts.disks = pickDisks(d.disks).map((dk) => {
           const label = dk.mount.replace(/\\$/, "") || dk.name;
@@ -176,6 +218,25 @@ export default {
       parts.cpuSpark?.set(histCpu, 100);
       if (parts.cores) [...parts.cores.children].forEach((c, i) => (c.firstChild.style.height = `${d.cpu_cores[i] ?? 0}%`));
       if (parts.ram) set(parts.ram, (d.mem_used / d.mem_total) * 100, fmtPct((d.mem_used / d.mem_total) * 100), `${fmtBytes(d.mem_used)} / ${fmtBytes(d.mem_total)}`);
+      parts.gpu?.forEach((p, i) => {
+        const g = d.gpus.find((x) => x.name === parts.gpuList[i]?.name);
+        if (!g) return;
+        const sub = [g.temp != null && fmtTemp(g.temp), g.fan_rpm && `${g.fan_rpm} tr/min`].filter(Boolean).join(" · ");
+        set(p, g.usage ?? 0, g.usage == null ? "—" : fmtPct(g.usage), kind === "rings" ? "" : sub);
+      });
+      parts.vram?.forEach((p, i) => {
+        const g = d.gpus.find((x) => x.name === parts.gpuList[i]?.name);
+        if (!g || !g.vram_total) return;
+        const used = g.vram_used ?? 0;
+        set(p, (used / g.vram_total) * 100, fmtPct((used / g.vram_total) * 100), `${fmtBytes(used)} / ${fmtBytes(g.vram_total)}`);
+      });
+      if (parts.tcpu) {
+        const g = d.gpus.find((x) => x.name === parts.gpuList[0]?.name);
+        const tc = lhm.cpu ?? d.cpu_temp;
+        const tg = g?.temp ?? lhm.gpu;
+        set(parts.tcpu, tc ?? 0, fmtTemp(tc), tc == null && !o.lhm ? "indisponible : voir réglages" : "");
+        set(parts.tgpu, tg ?? 0, fmtTemp(tg), "");
+      }
       parts.disks?.forEach((p, i) => {
         const dk = pickDisks(d.disks)[i];
         if (dk) set(p, (dk.used / dk.total) * 100, fmtPct((dk.used / dk.total) * 100), `${fmtBytes(dk.total - dk.used)} libres`);
@@ -192,8 +253,21 @@ export default {
       if (parts.host) parts.host.replaceChildren(el("div", { class: "host-name" }, d.host), el("div", { class: "host-os" }, d.os), has("cpu") ? el("div", { class: "host-os" }, d.cpu_brand) : "");
     };
 
+    let lhm = { cpu: null, gpu: null };
+    let lhmAt = 0;
+    const readLhm = async () => {
+      if (!o.lhm || !has("temps") || Date.now() - lhmAt < 2000) return;
+      lhmAt = Date.now();
+      try {
+        lhm = lhmTemps(await ctx.api.httpJson(o.lhmUrl || "http://localhost:8085/data.json", 2));
+      } catch {
+        lhm = { cpu: null, gpu: null };
+      }
+    };
+
     let timer;
     const tick = async () => {
+      await readLhm();
       try {
         const d = await ctx.api.systemInfo();
         if (!ctx.signal.aborted) update(d);

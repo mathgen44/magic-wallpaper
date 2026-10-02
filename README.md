@@ -1,10 +1,11 @@
 # Dynamic Background
 
-Fond d'écran dynamique et modulaire pour Windows 10 / 11. On compose son bureau avec des **briques** (horloge, carrousel d'images, flux RSS, infos système façon Rainmeter, texte…) dans un éditeur visuel, et le résultat s'affiche **derrière les icônes du bureau**.
+Fond d'écran dynamique et modulaire pour Windows 10 / 11. On compose son bureau avec des **briques** (horloge, météo, agenda, média en cours, visualiseur audio, infos système façon Rainmeter, flux RSS, carrousel d'images, soleil, lune, texte…) dans un éditeur visuel, et le résultat s'affiche **derrière les icônes du bureau**.
 
 - Éditeur glisser-déposer : on place, déplace et redimensionne les briques sur une grille aimantée
 - Thèmes prêts à l'emploi (Nuit, Aurore, Forêt, Néon, Graphite, Océan, Terminal), entièrement personnalisables : couleurs, transparence, flou, arrondis, police, fond (couleur, dégradé ou image)
 - Multi-écrans : plusieurs dispositions nommées, chacune affectée à un ou plusieurs écrans (ou aucun fond sur un écran donné)
+- Briques interactives : un clic sur une zone vide du bureau ouvre un article RSS ou pilote la lecture (lecture/pause, suivant, précédent)
 - Léger : application Tauri (Rust + WebView2), installeur de quelques Mo, sans droits administrateur
 - Vit dans la zone de notification : éditeur, pause, rechargement, démarrage avec Windows
 
@@ -22,11 +23,25 @@ WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon l'installeur
 
 - **Icône de la zone de notification** : clic gauche = éditeur ; clic droit = pause, recharger, quitter.
 - **Ajouter une brique** : cliquez dessus dans la palette de gauche, ou glissez-la sur l'aperçu.
-- **Une disposition par écran** : choisissez l'écran dans la barre du haut puis cliquez sur **+** pour lui créer sa propre disposition (copie de l'actuelle). Les affectations se règlent dans *Réglages → Écrans*.
+- **Dispositions et écrans** : la barre du haut affiche la disposition en cours d'édition et les écrans où elle est affichée — cliquez sur un écran pour l'y activer ou l'en retirer. **+** crée une nouvelle disposition (copie de l'actuelle). Le même réglage existe dans *Réglages → Écrans*.
 - **Déplacer / redimensionner** : à la souris sur l'aperçu, ou avec les champs *Position* de l'inspecteur.
 - **Raccourcis** : flèches (Maj = ×4), Suppr, Ctrl+D (dupliquer), Ctrl+Z / Ctrl+Y, Ctrl+S (appliquer).
 - Par défaut, chaque modification est appliquée en direct sur le bureau (désactivable dans *Réglages*).
 - **Exporter / Importer** une disposition (`.json`) pour la sauvegarder ou la partager.
+
+## Briques
+
+| Brique | Source des données |
+|---|---|
+| Horloge, Texte | — |
+| Météo | [Open-Meteo](https://open-meteo.com) (gratuit, sans clé). Lieu : automatique (adresse IP) ou ville recherchée |
+| Soleil, Lune | Calculés localement (algorithmes SunCalc / Meeus) — lever, coucher, durée du jour, phase, prochaines pleine / nouvelle lune |
+| Agenda | Adresse iCal (.ics) : Google Agenda (*Paramètres → votre agenda → Adresse secrète au format iCal*), Outlook (*Calendrier → Calendriers partagés → Publier*), Nextcloud… Récurrences prises en charge |
+| Média en cours | Contrôles multimédias de Windows (Spotify, navigateurs, Lecteur multimédia, VLC…) |
+| Visualiseur audio | Capture du son de la sortie audio par défaut (WASAPI *loopback*) |
+| Infos système | CPU, RAM, disques, réseau ; GPU (utilisation, VRAM, température) via les compteurs Windows ; température CPU via Windows ou [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (*Options → Remote Web Server*) |
+| Flux RSS | Flux RSS / Atom / JSON Feed |
+| Carrousel | Dossier d'images ou liste d'adresses |
 
 ## Compiler l'installeur
 
@@ -63,11 +78,17 @@ wallpaper.html / src/wallpaper.js   Page affichée en fond d'écran (une fenêtr
 src/board.js                 Rendu d'une configuration — partagé par l'éditeur et le fond
 src/widgets/                 Les briques (une par fichier) + registre index.js
 src/themes.js, src/model.js  Thèmes prédéfinis, modèle de configuration
+src/astro.js                 Calculs soleil / lune
 src/api.js                   Pont vers Rust (+ données simulées hors Tauri)
 src-tauri/src/
   lib.rs                     Fenêtres, zone de notification, commandes, surveillance
   desktop.rs                 Intégration derrière les icônes (WorkerW / Progman)
-  sysmon.rs                  CPU, RAM, disques, réseau (crate sysinfo)
+  input.rs                   Clics sur le bureau relayés au fond (hook souris)
+  sysmon.rs, gpu.rs          CPU, RAM, disques, réseau (sysinfo) ; GPU (PDH, DXGI, D3DKMT)
+  media.rs                   Média en cours (GlobalSystemMediaTransportControls)
+  audio.rs                   Capture audio + FFT pour le visualiseur
+  ics.rs                     Agendas iCal (récurrences via la crate rrule)
+  net.rs                     Requêtes JSON (météo, géolocalisation) avec cache
   feeds.rs                   Récupération + analyse RSS/Atom/JSON Feed (feed-rs)
   images.rs                  Listing des dossiers d'images
 ```
@@ -89,17 +110,17 @@ Une surveillance toutes les 3 s répare sur place le style, la visibilité et l'
 
 ```js
 export default {
-  type: "meteo",                     // identifiant unique
-  name: "Météo",
-  description: "Prévisions du jour.",
+  type: "citation",                  // identifiant unique
+  name: "Citation",
+  description: "Une citation du jour.",
   icon: `<svg viewBox="0 0 24 24">…</svg>`,
   size: { w: 10, h: 6 },             // taille par défaut (cases de grille)
   options: [                         // génère automatiquement le panneau de réglages
-    { key: "ville", label: "Ville", type: "text", default: "Nantes" },
-    { key: "unite", label: "Unité", type: "select", default: "c", choices: [["c", "°C"], ["f", "°F"]] },
+    { key: "auteur", label: "Auteur", type: "text", default: "" },
+    { key: "taille", label: "Taille", type: "select", default: "m", choices: [["s", "Petite"], ["m", "Moyenne"]] },
   ],
   mount(body, options, ctx) {
-    body.textContent = options.ville;
+    body.textContent = options.auteur;
     const timer = setInterval(() => { /* … */ }, 60_000);
     return { destroy: () => clearInterval(timer) };
   },
@@ -108,14 +129,18 @@ export default {
 
 2. Ajoutez-la à `WIDGET_LIST` dans `src/widgets/index.js`.
 
-Types de champs disponibles : `text`, `textarea`, `list`, `number`, `range`, `toggle`, `select`, `color`, `folder`, `checklist` (avec `showIf` pour les afficher selon les autres réglages). Les couleurs du thème sont accessibles en CSS via `var(--fg)`, `var(--muted)`, `var(--w-accent)`, `var(--accent2)`, `var(--track)`. Si la brique a besoin d'accès système ou réseau hors CORS, ajoutez une commande dans `src-tauri/src/lib.rs`.
+Types de champs disponibles : `text`, `textarea`, `list`, `number`, `range`, `toggle`, `select`, `color`, `folder`, `image`, `checklist`, `location` (avec `showIf` pour les afficher selon les autres réglages). Les couleurs du thème sont accessibles en CSS via `var(--fg)`, `var(--muted)`, `var(--w-accent)`, `var(--accent2)`, `var(--track)`. Si la brique a besoin d'accès système ou réseau hors CORS, ajoutez une commande dans `src-tauri/src/lib.rs`.
 
 ## Limites connues / pistes
 
-- Interactivité limitée : seuls les clics (simple ou double) sur une zone vide du bureau sont relayés au fond d'écran (ouverture des articles RSS). Pas de survol ni de défilement.
+- Interactivité limitée : seuls les clics (simple ou double) sur une zone vide du bureau sont relayés au fond d'écran. Pas de survol ni de défilement.
 - Pas encore de mise en pause automatique quand une application est en plein écran (jeux).
-- Pas de température CPU/GPU (non exposée de façon fiable par Windows sans pilote dédié).
-- Idées de briques : météo, calendrier, lecteur multimédia en cours, Zabbix / Proxmox, vidéo de fond, notes.
+- La température du processeur n'est souvent pas exposée par Windows : utilisez LibreHardwareMonitor. Celle du GPU dépend du pilote (WDDM 2.4+).
+- Idées de briques : état des services / Uptime Kuma, Zabbix / Proxmox, Docker, image du jour, vidéo de fond, notes.
+
+## Crédits
+
+Calculs astronomiques adaptés de [SunCalc](https://github.com/mourner/suncalc) (BSD-2-Clause, © Vladimir Agafonkin). Météo et géocodage : [Open-Meteo](https://open-meteo.com) (CC BY 4.0). Géolocalisation par IP : ipwho.is / GeoJS.
 
 ## Licence
 

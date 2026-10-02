@@ -3,7 +3,8 @@
 use serde::Serialize;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use sysinfo::{Disks, Networks, System};
+use crate::gpu::{GpuInfo, GpuMonitor};
+use sysinfo::{Components, Disks, Networks, System};
 
 #[derive(Serialize, Clone)]
 pub struct DiskInfo {
@@ -31,6 +32,9 @@ pub struct SysInfo {
     pub host: String,
     pub os: String,
     pub processes: usize,
+    pub gpus: Vec<GpuInfo>,
+    /// °C, si Windows l'expose (souvent indisponible sans LibreHardwareMonitor).
+    pub cpu_temp: Option<f32>,
 }
 
 pub struct SysMonitor {
@@ -40,6 +44,10 @@ pub struct SysMonitor {
     last_refresh: Instant,
     last_disk_refresh: Instant,
     cached: Option<SysInfo>,
+    gpu: Option<GpuMonitor>,
+    components: Option<Components>,
+    last_temp_refresh: Instant,
+    cpu_temp: Option<f32>,
 }
 
 pub struct SysState(pub Mutex<SysMonitor>);
@@ -56,6 +64,10 @@ impl SysState {
             last_refresh: Instant::now(),
             last_disk_refresh: Instant::now(),
             cached: None,
+            gpu: None,
+            components: None,
+            last_temp_refresh: Instant::now() - Duration::from_secs(3600),
+            cpu_temp: None,
         }))
     }
 }
@@ -81,6 +93,15 @@ impl SysMonitor {
             (r + n.received(), t + n.transmitted())
         });
         self.last_refresh = Instant::now();
+
+        // GPU et températures : initialisés au premier usage (coût de démarrage évité).
+        let gpus = self.gpu.get_or_insert_with(GpuMonitor::new).sample();
+        if self.last_temp_refresh.elapsed() > Duration::from_secs(5) {
+            self.last_temp_refresh = Instant::now();
+            let comps = self.components.get_or_insert_with(Components::new_with_refreshed_list);
+            comps.refresh(false);
+            self.cpu_temp = cpu_temperature(comps);
+        }
 
         let cpus = self.sys.cpus();
         let info = SysInfo {
@@ -108,8 +129,30 @@ impl SysMonitor {
             host: System::host_name().unwrap_or_default(),
             os: System::long_os_version().unwrap_or_default(),
             processes: self.sys.processes().len(),
+            gpus,
+            cpu_temp: self.cpu_temp,
         };
         self.cached = Some(info.clone());
         info
     }
+}
+
+/// Température processeur parmi les capteurs exposés par le système.
+fn cpu_temperature(comps: &Components) -> Option<f32> {
+    let temps: Vec<(String, f32)> = comps
+        .iter()
+        .filter_map(|c| c.temperature().map(|t| (c.label().to_lowercase(), t)))
+        .filter(|(_, t)| t.is_finite() && *t > 0.0 && *t < 150.0)
+        .collect();
+    let pick = |keys: &[&str]| {
+        temps
+            .iter()
+            .filter(|(l, _)| keys.iter().any(|k| l.contains(k)))
+            .map(|(_, t)| *t)
+            .fold(None, |m: Option<f32>, t| Some(m.map_or(t, |m| m.max(t))))
+    };
+    pick(&["package", "tctl", "tdie", "cpu"]).or_else(|| pick(&["core"])).or_else(|| {
+        // Windows : zones thermiques ACPI (approximatives) en dernier recours.
+        temps.iter().map(|(_, t)| *t).fold(None, |m: Option<f32>, t| Some(m.map_or(t, |m| m.max(t))))
+    })
 }

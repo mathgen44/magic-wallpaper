@@ -1,6 +1,6 @@
 [package]
 name = "dynamic-background"
-version = "0.3.0"
+version = "0.4.0"
 description = "Fond d'écran dynamique modulaire pour Windows"
 authors = ["mathgen44"]
 license = "MIT"
@@ -27,6 +27,9 @@ feed-rs = "2"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "rustls-tls-native-roots", "gzip", "brotli", "charset"] }
 futures = "0.3"
 log = "0.4"
+rrule = "0.14.0"
+chrono = "0.4.45"
+chrono-tz = "0.10.4"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = [
@@ -35,6 +38,18 @@ windows = { version = "0.61", features = [
   "Win32_Graphics_Gdi",
   "Win32_System_LibraryLoader",
   "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_System_Performance",
+  "Win32_Graphics_Dxgi",
+  "Win32_Graphics_Dxgi_Common",
+  "Wdk_Graphics_Direct3D",
+  "Win32_System_WinRT",
+  "Foundation",
+  "Media_Control",
+  "Storage_Streams",
+  "Win32_Media_Audio",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
 ] }
 
 [profile.release]

@@ -303,9 +303,138 @@
 .carousel-caption:empty { display: none; }
 
 /* ---- éléments cliquables (data-href) : retour visuel à l'ouverture ---- */
-[data-href] { cursor: pointer; }
-[data-href].activated { animation: link-activated 0.7s ease; }
+[data-href], [data-action] { cursor: pointer; }
+[data-href].activated, [data-action].activated { animation: link-activated 0.7s ease; }
 @keyframes link-activated {
   0% { filter: brightness(1.6); transform: scale(0.98); }
   100% { filter: none; transform: none; }
 }
+
+/* ---- Icônes météo ------------------------------------------------------ */
+.wicon { width: 100%; height: 100%; overflow: visible; }
+.wicon .wi-sun { fill: #ffc94a; stroke: none; }
+.wicon .wi-ray { stroke: #ffc94a; stroke-width: 1.5; stroke-linecap: round; }
+.wicon .wi-moon { fill: #e8e4d8; }
+.wicon .wi-cloud { fill: var(--fg); fill-opacity: 0.92; stroke: none; }
+.wicon .wi-cloud.wi-back { fill-opacity: 0.45; }
+.wicon .wi-rain { stroke: #6fb6ff; stroke-width: 1.5; stroke-linecap: round; }
+.wicon .wi-snow { fill: #dff1ff; }
+.wicon .wi-fog { stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; }
+.wicon .wi-bolt { fill: none; stroke: #ffd24a; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+
+/* ---- Météo ------------------------------------------------------------- */
+.weather { height: 100%; display: flex; flex-direction: column; gap: 0.7em; overflow: hidden; }
+.wx-now { display: flex; align-items: center; gap: 0.8em; flex: none; }
+.wx-icon { width: 3.6em; height: 3.6em; flex: none; }
+.wx-main { min-width: 0; }
+.wx-place { font-size: 0.72em; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wx-temp { font-size: 2.6em; font-weight: 300; line-height: 1; letter-spacing: -0.03em; }
+.wx-desc { font-size: 0.85em; }
+.wx-minmax { font-size: 0.72em; color: var(--muted); white-space: pre; }
+.wx-details { display: grid; grid-template-columns: repeat(auto-fill, minmax(7em, 1fr)); gap: 0.35em 0.8em; flex: none; }
+.wx-det { display: flex; flex-direction: column; }
+.wx-k { font-size: 0.62em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.wx-v { font-size: 0.85em; white-space: nowrap; }
+.wx-arrow { display: inline-block; color: var(--w-accent); }
+.wx-hours { display: flex; justify-content: space-between; gap: 0.3em; flex: none; border-top: 1px solid var(--border); padding-top: 0.6em; }
+.wx-hour { display: flex; flex-direction: column; align-items: center; gap: 0.15em; min-width: 0; flex: 1; }
+.wx-h, .wx-hp { font-size: 0.62em; color: var(--muted); }
+.wx-hp { color: #6fb6ff; min-height: 1em; }
+.wx-hicon { width: 1.6em; height: 1.6em; }
+.wx-ht { font-size: 0.78em; }
+.wx-days { display: flex; flex-direction: column; gap: 0.35em; border-top: 1px solid var(--border); padding-top: 0.6em; min-height: 0; overflow: hidden; }
+.wx-day { display: grid; grid-template-columns: 3em 1.4em 2.6em 2.4em 1fr 2.4em; align-items: center; gap: 0.4em; font-size: 0.8em; }
+.wx-dn { font-weight: 600; }
+.wx-dicon { width: 1.4em; height: 1.4em; }
+.wx-dp { font-size: 0.8em; color: #6fb6ff; }
+.wx-dmin { color: var(--muted); text-align: right; }
+.wx-range { position: relative; height: 0.32em; border-radius: 1em; background: color-mix(in srgb, var(--fg) 12%, transparent); }
+.wx-range-fill { position: absolute; top: 0; bottom: 0; border-radius: 1em; background: linear-gradient(90deg, #6fb6ff, var(--w-accent), #ffb14a); }
+@container (max-height: 9em) { .wx-details, .wx-hours, .wx-days { display: none; } }
+
+/* ---- Soleil ------------------------------------------------------------ */
+.sun { height: 100%; display: flex; flex-direction: column; gap: 0.4em; }
+.sun-arc { width: 100%; flex: 1 1 auto; min-height: 2em; max-height: 9em; overflow: visible; }
+.sun-track { fill: none; stroke: var(--muted); stroke-opacity: 0.5; stroke-width: 0.7; stroke-dasharray: 1.5 1.5; }
+.sun-done { fill: none; stroke: #ffc94a; stroke-width: 1.1; }
+.sun-horizon { stroke: var(--border); stroke-width: 0.6; }
+.sun-dot { fill: #ffc94a; }
+.sun-glow { fill: #ffc94a; opacity: 0.25; }
+.sun-times { display: flex; justify-content: space-between; gap: 1em; flex: none; }
+.sun-t { display: flex; align-items: center; gap: 0.35em; }
+.sun-ico { width: 1.3em; height: 1.3em; color: #ffc94a; display: inline-flex; }
+.sun-t:last-child .sun-ico { color: #ff8a4a; }
+.sun-ico svg { width: 100%; height: 100%; }
+.sun-v { font-size: 1.25em; font-weight: 300; }
+.sun-status { font-size: 0.75em; color: var(--muted); flex: none; }
+.sun-rows { display: flex; flex-direction: column; gap: 0.2em; flex: none; }
+
+/* ---- Lune -------------------------------------------------------------- */
+.moon { height: 100%; display: flex; flex-direction: column; gap: 0.6em; }
+.moon-main { display: flex; align-items: center; gap: 0.9em; flex: 1 1 auto; min-height: 0; }
+.moon-disk { height: 100%; max-height: 7em; aspect-ratio: 1; flex: none; overflow: visible; }
+.moon-dark { fill: color-mix(in srgb, var(--fg) 10%, transparent); }
+.moon-lit { fill: #f1ecdc; filter: drop-shadow(0 0 0.06px #fff8e0); }
+.moon-rim { fill: none; stroke: color-mix(in srgb, var(--fg) 25%, transparent); stroke-width: 0.02; }
+.moon-name { font-size: 1.1em; }
+.moon-sub { font-size: 0.75em; color: var(--muted); }
+.moon-next { display: flex; flex-direction: column; gap: 0.3em; flex: none; border-top: 1px solid var(--border); padding-top: 0.5em; }
+.moon-np { display: grid; grid-template-columns: 1.1em 1fr auto; align-items: center; gap: 0.5em; font-size: 0.78em; }
+.moon-np-ico svg { width: 1.1em; height: 1.1em; display: block; }
+.moon-np-date { color: var(--muted); white-space: nowrap; }
+
+/* ---- Média en cours ----------------------------------------------------- */
+.w-media { padding: 0; }
+.media { position: absolute; inset: 0; overflow: hidden; }
+.media-backdrop { position: absolute; inset: -20%; background-size: cover; background-position: center; filter: blur(28px) saturate(1.4); opacity: 0.45; }
+.media-inner { position: relative; height: 100%; box-sizing: border-box; padding: 0.8em; display: flex; gap: 0.9em; align-items: center; }
+.media-column .media-inner { flex-direction: column; align-items: stretch; }
+.media-cover { height: 100%; aspect-ratio: 1; flex: none; border-radius: calc(var(--radius) * var(--ui) * 0.6); background: color-mix(in srgb, var(--fg) 10%, transparent) center / cover; box-shadow: 0 0.3em 1em rgba(0, 0, 0, 0.35); display: grid; place-items: center; color: var(--muted); }
+.media-cover.empty svg { width: 45%; height: 45%; }
+.media-column .media-cover { height: auto; width: 100%; flex: 1 1 auto; min-height: 0; aspect-ratio: auto; }
+.media-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 0.15em; }
+.media-app { font-size: 0.62em; color: var(--w-accent); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; }
+.media-title { font-size: 1.05em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-artist { font-size: 0.8em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-progress { margin-top: 0.4em; }
+.media-bar { height: 0.25em; border-radius: 1em; background: color-mix(in srgb, var(--fg) 15%, transparent); overflow: hidden; }
+.media-fill { height: 100%; background: var(--w-accent); border-radius: 1em; transition: width 0.25s linear; }
+.media-times { display: flex; justify-content: space-between; font-size: 0.6em; color: var(--muted); margin-top: 0.2em; }
+.media-controls { display: flex; gap: 0.5em; margin-top: 0.3em; align-items: center; }
+.media-btn { all: unset; width: 1.5em; height: 1.5em; display: inline-grid; place-items: center; color: var(--fg); border-radius: 50%; }
+.media-btn svg { width: 70%; height: 70%; fill: currentColor; }
+.media-btn.media-playpause { width: 2em; height: 2em; background: var(--w-accent); color: #fff; }
+.media.paused .media-cover { filter: grayscale(0.5) brightness(0.8); }
+.media-idle { height: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5em; color: var(--muted); font-size: 0.85em; }
+.media-idle-icon svg { width: 1.4em; height: 1.4em; display: block; }
+.cell.media-hidden { visibility: hidden; }
+@container (max-height: 5.5em) { .media-progress, .media-app { display: none; } }
+
+/* ---- Agenda ------------------------------------------------------------ */
+.agenda { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.ag-list { display: flex; flex-direction: column; gap: 0.35em; min-height: 0; overflow: hidden; flex: 1; }
+.ag-day { font-size: 0.68em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--w-accent); margin-top: 0.5em; }
+.ag-day:first-child { margin-top: 0; }
+.ag-ev { display: flex; gap: 0.6em; align-items: stretch; }
+.ag-bar { width: 0.22em; border-radius: 1em; flex: none; }
+.ag-body { min-width: 0; }
+.ag-title { font-size: 0.88em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ag-meta { font-size: 0.68em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ag-ev.now .ag-title { font-weight: 600; }
+.ag-ev.now .ag-meta { color: var(--w-accent); }
+.ag-empty { color: var(--muted); font-size: 0.85em; }
+.ag-error { font-size: 0.65em; color: #ff9a6b; margin-top: 0.4em; flex: none; }
+.cal-month { flex: none; margin-bottom: 0.8em; }
+.cal-mtitle { font-size: 0.8em; font-weight: 600; margin-bottom: 0.3em; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.15em; text-align: center; font-size: 0.68em; }
+.cal-h { color: var(--muted); font-weight: 600; }
+.cal-d { position: relative; padding: 0.2em 0 0.35em; border-radius: 0.4em; }
+.cal-d.past { color: var(--muted); }
+.cal-d.today { background: var(--w-accent); color: #fff; font-weight: 600; }
+.cal-dot { position: absolute; left: 50%; bottom: 0.08em; width: 0.32em; height: 0.32em; margin-left: -0.16em; border-radius: 50%; }
+.cal-d.today .cal-dot { background: #fff !important; }
+
+/* ---- Visualiseur -------------------------------------------------------- */
+.wbody.w-visualizer { padding: 0.5em 0.7em; }
+.viz { width: 100%; height: 100%; display: block; }
+

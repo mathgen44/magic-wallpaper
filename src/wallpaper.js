@@ -20,18 +20,21 @@ async function start() {
 }
 
 // ---- Interactivité ----
-// Les éléments portant `data-href` ouvrent une page ; `data-open` = "click" | "dblclick" | "none".
+// Les éléments portant `data-href` ouvrent une page, `data-action` lance une commande ; `data-open` = "click" | "dblclick" | "none".
 // Les clics arrivent soit du bureau (relayés par le backend, le fond étant derrière les icônes),
 // soit directement (icônes du bureau masquées).
+// `data-action="media:playpause"` déclenche une commande (lecteur multimédia…).
 function activate(x, y, count) {
-  const target = document.elementFromPoint(x, y)?.closest("[data-href]");
+  const target = document.elementFromPoint(x, y)?.closest("[data-href], [data-action]");
   if (!target) return;
   const mode = target.dataset.open || "click";
   if ((mode === "click" && count === 1) || (mode === "dblclick" && count === 2)) {
     target.classList.remove("activated");
     void target.offsetWidth; // relance l'animation
     target.classList.add("activated");
-    api.openUrl(target.dataset.href).catch((e) => console.error(e));
+    if (target.dataset.href) api.openUrl(target.dataset.href).catch((e) => console.error(e));
+    const [ns, act] = (target.dataset.action || "").split(":");
+    if (ns === "media") api.mediaControl(act).catch((e) => console.error(e));
   }
 }
 api.onDesktopClick((c) => activate(c.x, c.y, c.count));
