@@ -13,6 +13,7 @@ mod config;
 mod desktop;
 mod feeds;
 mod images;
+mod input;
 mod sysmon;
 
 use serde::Serialize;
@@ -202,6 +203,19 @@ fn rebuild(app: &AppHandle) {
     desktop::refresh_wallpaper();
 }
 
+/// Fenêtre de fond sous le point écran (x, y) en pixels physiques, avec la position
+/// correspondante en pixels CSS dans cette fenêtre.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn wall_at(app: &AppHandle, x: i32, y: i32) -> Option<(String, f64, f64)> {
+    let st = app.state::<AppState>();
+    let walls = st.walls.lock().unwrap();
+    let w = walls
+        .iter()
+        .find(|w| x >= w.rect.x && x < w.rect.x + w.rect.w && y >= w.rect.y && y < w.rect.y + w.rect.h)?;
+    let scale = app.get_webview_window(&w.label)?.scale_factor().unwrap_or(1.0);
+    Some((w.label.clone(), (x - w.rect.x) as f64 / scale, (y - w.rect.y) as f64 / scale))
+}
+
 fn schedule_rebuild(app: &AppHandle) {
     let a = app.clone();
     let _ = app.run_on_main_thread(move || rebuild(&a));
@@ -383,6 +397,16 @@ fn import_config(path: String) -> Result<Value, String> {
     serde_json::from_str(&raw).map_err(|e| format!("Fichier invalide : {e}"))
 }
 
+/// Ouvre une page web dans le navigateur par défaut (articles RSS…).
+#[tauri::command]
+fn open_url(app: AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("Adresse non prise en charge".into());
+    }
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 async fn reload_wallpapers(app: AppHandle) {
     schedule_rebuild(&app);
@@ -443,6 +467,7 @@ pub fn run() {
         // Doit être le premier plugin : une 2e instance ouvre simplement l'éditeur.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| open_editor(app)))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--autostart"])))
         .manage(AppState::default())
         .manage(sysmon::SysState::new())
@@ -459,6 +484,7 @@ pub fn run() {
             import_config,
             reload_wallpapers,
             read_log,
+            open_url,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -473,6 +499,7 @@ pub fn run() {
             build_tray(&handle)?;
             rebuild(&handle);
             spawn_watchdog(handle.clone());
+            input::install(handle.clone());
             let autostarted = std::env::args().any(|a| a == "--autostart");
             if !autostarted {
                 open_editor(&handle);

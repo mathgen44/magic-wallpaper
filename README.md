@@ -112,7 +112,7 @@ Types de champs disponibles : `text`, `textarea`, `list`, `number`, `range`, `to
 
 ## Limites connues / pistes
 
-- Le fond d'écran n'est pas interactif (les clics vont au bureau) : les liens RSS ne sont pas cliquables.
+- Interactivité limitée : seuls les clics (simple ou double) sur une zone vide du bureau sont relayés au fond d'écran (ouverture des articles RSS). Pas de survol ni de défilement.
 - Pas encore de mise en pause automatique quand une application est en plein écran (jeux).
 - Pas de température CPU/GPU (non exposée de façon fiable par Windows sans pilote dédié).
 - Idées de briques : météo, calendrier, lecteur multimédia en cours, Zabbix / Proxmox, vidéo de fond, notes.

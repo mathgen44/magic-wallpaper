@@ -301,3 +301,11 @@
 .host-name { font-weight: 600; }
 .host-os { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .carousel-caption:empty { display: none; }
+
+/* ---- éléments cliquables (data-href) : retour visuel à l'ouverture ---- */
+[data-href] { cursor: pointer; }
+[data-href].activated { animation: link-activated 0.7s ease; }
+@keyframes link-activated {
+  0% { filter: brightness(1.6); transform: scale(0.98); }
+  100% { filter: none; transform: none; }
+}

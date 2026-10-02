@@ -127,6 +127,13 @@ export const api = {
   async importConfig(path) {
     if (isTauri) return invoke("import_config", { path });
   },
+  async openUrl(url) {
+    if (isTauri) return invoke("open_url", { url });
+    window.open(url, "_blank", "noopener");
+  },
+  async onDesktopClick(cb) {
+    if (isTauri) return listen("desktop-click", (e) => cb(e.payload));
+  },
   async reloadWallpapers() {
     if (isTauri) return invoke("reload_wallpapers");
   },

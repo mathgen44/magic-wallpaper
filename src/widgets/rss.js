@@ -18,6 +18,7 @@ export default {
     { key: "images", label: "Afficher les vignettes", type: "toggle", default: true, showIf: (o) => o.mode !== "ticker" },
     { key: "summary", label: "Afficher le résumé", type: "toggle", default: false, showIf: (o) => o.mode !== "ticker" },
     { key: "source", label: "Afficher la source", type: "toggle", default: true },
+    { key: "open", label: "Ouvrir l'article sur le bureau", type: "select", default: "click", choices: [["click", "Clic"], ["dblclick", "Double-clic"], ["none", "Jamais"]], hint: "Clic sur une zone vide du bureau, au-dessus de l'article." },
     { key: "date", label: "Afficher la date", type: "toggle", default: true },
   ],
   mount(body, o, ctx) {
@@ -34,25 +35,27 @@ export default {
       const parts = [o.source && it.source, o.date && fmtRelative(it.date)].filter(Boolean);
       return parts.length ? el("div", { class: "rss-meta" }, parts.join(" · ")) : null;
     };
+    // Attributs rendant un élément cliquable sur le fond d'écran (voir wallpaper.js).
+    const link = (it) => (o.open !== "none" && /^https?:/.test(it.link || "") ? { "data-href": it.link, "data-open": o.open } : {});
     const thumb = (it) => (o.images && it.image ? el("div", { class: "rss-thumb", style: { backgroundImage: `url("${it.image}")` } }) : null);
 
     const renderList = () => {
       content.replaceChildren(
         ...items.map((it) =>
-          el("div", { class: "rss-item" }, thumb(it), el("div", { class: "rss-text" }, el("div", { class: "rss-title" }, it.title), o.summary && it.summary && el("div", { class: "rss-summary" }, it.summary), meta(it))),
+          el("div", { class: "rss-item", ...link(it) }, thumb(it), el("div", { class: "rss-text" }, el("div", { class: "rss-title" }, it.title), o.summary && it.summary && el("div", { class: "rss-summary" }, it.summary), meta(it))),
         ),
       );
     };
     const renderCard = () => {
       if (!items.length) return;
       const it = items[cardIdx % items.length];
-      const card = el("div", { class: "rss-card" }, thumb(it), el("div", { class: "rss-card-text" }, el("div", { class: "rss-title" }, it.title), o.summary && it.summary && el("div", { class: "rss-summary" }, it.summary), meta(it)));
+      const card = el("div", { class: "rss-card", ...link(it) }, thumb(it), el("div", { class: "rss-card-text" }, el("div", { class: "rss-title" }, it.title), o.summary && it.summary && el("div", { class: "rss-summary" }, it.summary), meta(it)));
       content.replaceChildren(card);
       cardIdx++;
     };
     const renderTicker = () => {
       const track = el("div", { class: "rss-track" });
-      const seq = () => items.map((it) => el("span", { class: "rss-tick" }, o.source ? el("b", {}, it.source + " ") : "", it.title, o.date ? el("i", {}, " " + fmtRelative(it.date)) : ""));
+      const seq = () => items.map((it) => el("span", { class: "rss-tick", ...link(it) }, o.source ? el("b", {}, it.source + " ") : "", it.title, o.date ? el("i", {}, " " + fmtRelative(it.date)) : ""));
       track.append(...seq(), ...seq()); // doublé pour une boucle continue
       const chars = items.reduce((n, it) => n + it.title.length + 12, 0);
       track.style.animationDuration = `${Math.max(10, chars / 6 / o.speed)}s`;
