@@ -8,7 +8,7 @@ use tauri::{AppHandle, Manager};
 pub fn config_path(app: &AppHandle) -> PathBuf {
     app.path()
         .app_config_dir()
-        .unwrap_or_else(|_| std::env::temp_dir().join("dynamic-background"))
+        .unwrap_or_else(|_| std::env::temp_dir().join("magic-wallpaper"))
         .join("layout.json")
 }
 

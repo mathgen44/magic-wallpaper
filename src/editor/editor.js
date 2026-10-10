@@ -98,8 +98,12 @@ function isDirty() {
 
 function updateStatus() {
   const dirty = isDirty();
-  $("#status").textContent = dirty ? (S.live ? "Enregistrement…" : "Modifications non appliquées") : "Fond d'écran à jour";
+  // En mode direct (par défaut), chaque modification est enregistrée et appliquée toute seule :
+  // le bouton n'apparaît que si ce mode est désactivé dans les réglages.
+  $("#status").textContent = dirty ? (S.live ? "Enregistrement…" : "Modifications non appliquées") : S.live ? "Appliqué au bureau automatiquement" : "Fond d'écran à jour";
+  $("#status").title = S.live ? "Les modifications s'appliquent en direct (désactivable dans Réglages → Application)" : "";
   $("#status").classList.toggle("dirty", dirty);
+  $("#btn-apply").hidden = S.live;
   $("#btn-apply").disabled = !dirty;
   $("#btn-undo").disabled = !S.past.length;
   $("#btn-redo").disabled = !S.future.length;
@@ -290,7 +294,7 @@ function renderPalette() {
       el("span", { class: "pi-text" }, el("span", { class: "pi-name" }, def.name), el("span", { class: "pi-desc" }, def.description)),
     );
     item.addEventListener("dragstart", (e) => {
-      e.dataTransfer.setData("application/x-dynbg-widget", def.type);
+      e.dataTransfer.setData("application/x-magicwp-widget", def.type);
       e.dataTransfer.effectAllowed = "copy";
       dragType = def.type;
     });
@@ -596,7 +600,7 @@ function settingsPanel() {
   const live = el("input", { type: "checkbox", id: "live", checked: S.live });
   live.addEventListener("change", () => {
     S.live = live.checked;
-    try { localStorage.setItem("dynbg:live", S.live ? "1" : "0"); } catch {}
+    try { localStorage.setItem("magicwp:live", S.live ? "1" : "0"); } catch {}
     updateStatus();
   });
   const grid = el("input", { type: "checkbox", id: "showgrid", checked: S.showGrid });
@@ -628,14 +632,14 @@ function settingsPanel() {
         el("button", { class: "btn danger", onclick: resetLayout }, "Réinitialiser"),
       ),
     ),
-    section("À propos", el("p", { class: "muted small" }, "Dynamic Background — par mathgen44 · licence MIT"), details),
+    section("À propos", el("p", { class: "muted small" }, "Magic Wallpaper — par mathgen44 · licence MIT"), details),
   ];
 }
 
 async function exportLayout() {
   if (!isTauri) {
     const blob = new Blob([JSON.stringify(S.cfg, null, 2)], { type: "application/json" });
-    const a = el("a", { href: URL.createObjectURL(blob), download: "mon-fond.dynbg.json" });
+    const a = el("a", { href: URL.createObjectURL(blob), download: "mon-fond.magicwp.json" });
     a.click();
     return;
   }
@@ -871,7 +875,7 @@ function setupKeyboard() {
 // ===========================================================================
 async function init() {
   try {
-    S.live = localStorage.getItem("dynbg:live") !== "0";
+    S.live = localStorage.getItem("magicwp:live") !== "0";
   } catch {}
   board = new Board($("#board"), { editing: true });
   const loaded = await api.getConfig().catch(() => null);

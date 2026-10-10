@@ -1,6 +1,6 @@
-# Dynamic Background
+# Magic Wallpaper
 
-Fond d'écran dynamique et modulaire pour Windows 10 / 11. On compose son bureau avec des **briques** (horloge, météo, agenda, média en cours, visualiseur audio, infos système façon Rainmeter, flux RSS, carrousel d'images, soleil, lune, texte…) dans un éditeur visuel, et le résultat s'affiche **derrière les icônes du bureau**.
+Fond d'écran dynamique et modulaire pour Windows 10 / 11. On compose son bureau avec des **briques** (horloge, lanceur d'applications, météo, agenda, média en cours, visualiseur audio, infos système façon Rainmeter, flux RSS, carrousel d'images, soleil, lune, texte…) dans un éditeur visuel, et le résultat s'affiche **derrière les icônes du bureau**.
 
 - Éditeur glisser-déposer : on place, déplace et redimensionne les briques sur une grille aimantée
 - Thèmes prêts à l'emploi (Nuit, Aurore, Forêt, Néon, Graphite, Océan, Terminal), entièrement personnalisables : couleurs, transparence, flou, arrondis, police, fond (couleur, dégradé ou image)
@@ -11,9 +11,11 @@ Fond d'écran dynamique et modulaire pour Windows 10 / 11. On compose son bureau
 
 ## Installation (utilisateurs)
 
-1. Téléchargez `Dynamic Background_x.y.z_x64-setup.exe` depuis la page **Releases** du dépôt.
+1. Téléchargez `Magic Wallpaper_x.y.z_x64-setup.exe` depuis la page **Releases** du dépôt.
 2. Lancez-le. L'installation se fait pour votre compte uniquement, sans droits administrateur.
 3. Au premier lancement, l'éditeur s'ouvre et le démarrage automatique avec Windows est activé (désactivable dans *Réglages*).
+
+> L'application s'appelait **Dynamic Background** jusqu'à la v0.4. L'installeur de Magic Wallpaper ferme et désinstalle automatiquement l'ancienne version ; vos dispositions et le démarrage automatique sont repris.
 
 > L'installeur n'est pas signé numériquement : Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Cliquez sur **Informations complémentaires → Exécuter quand même**.
 
@@ -26,7 +28,7 @@ WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon l'installeur
 - **Dispositions et écrans** : la barre du haut affiche la disposition en cours d'édition et les écrans où elle est affichée — cliquez sur un écran pour l'y activer ou l'en retirer. **+** crée une nouvelle disposition (copie de l'actuelle). Le même réglage existe dans *Réglages → Écrans*.
 - **Déplacer / redimensionner** : à la souris sur l'aperçu, ou avec les champs *Position* de l'inspecteur.
 - **Raccourcis** : flèches (Maj = ×4), Suppr, Ctrl+D (dupliquer), Ctrl+Z / Ctrl+Y, Ctrl+S (appliquer).
-- Par défaut, chaque modification est appliquée en direct sur le bureau (désactivable dans *Réglages*).
+- Chaque modification est enregistrée et appliquée en direct sur le bureau. Si vous désactivez ce mode (*Réglages → Application*), un bouton **Appliquer au bureau** apparaît (Ctrl+S).
 - **Exporter / Importer** une disposition (`.json`) pour la sauvegarder ou la partager.
 
 ## Briques
@@ -34,6 +36,7 @@ WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon l'installeur
 | Brique | Source des données |
 |---|---|
 | Horloge, Texte | — |
+| Lanceur d'applications | Applications du menu Démarrer (programmes et Microsoft Store, avec icônes), jeux Steam (jaquettes) et Epic Games. Rangement automatique en catégories (Jeux, Musique & vidéo, Créativité, Bureautique, Internet, Développement, Utilitaires…) modifiable, favoris, applications ajoutées à la main. Les catégories sont des tiroirs qui s'ouvrent d'un clic |
 | Météo | [Open-Meteo](https://open-meteo.com) (gratuit, sans clé). Lieu : automatique (adresse IP) ou ville recherchée |
 | Soleil, Lune | Calculés localement (algorithmes SunCalc / Meeus) — lever, coucher, durée du jour, phase, prochaines pleine / nouvelle lune |
 | Agenda | Adresse iCal (.ics) : Google Agenda (*Paramètres → votre agenda → Adresse secrète au format iCal*), Outlook (*Calendrier → Calendriers partagés → Publier*), Nextcloud… Récurrences prises en charge |
@@ -84,6 +87,8 @@ src-tauri/src/
   lib.rs                     Fenêtres, zone de notification, commandes, surveillance
   desktop.rs                 Intégration derrière les icônes (WorkerW / Progman)
   input.rs                   Clics sur le bureau relayés au fond (hook souris)
+  apps.rs                    Applications installées (AppsFolder, Steam, Epic) et lancement
+  legacy.rs                  Reprise des données de « Dynamic Background »
   sysmon.rs, gpu.rs          CPU, RAM, disques, réseau (sysinfo) ; GPU (PDH, DXGI, D3DKMT)
   media.rs                   Média en cours (GlobalSystemMediaTransportControls)
   audio.rs                   Capture audio + FFT pour le visualiseur
@@ -93,7 +98,7 @@ src-tauri/src/
   images.rs                  Listing des dossiers d'images
 ```
 
-La configuration est enregistrée dans `%APPDATA%\com.mathgen44.dynamicbackground\layout.json`, le journal dans `%LOCALAPPDATA%\com.mathgen44.dynamicbackground\logs\`.
+La configuration est enregistrée dans `%APPDATA%\com.mathgen44.magicwallpaper\layout.json`, le journal dans `%LOCALAPPDATA%\com.mathgen44.magicwallpaper\logs\`.
 
 ### Placement derrière les icônes
 

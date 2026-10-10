@@ -12,7 +12,8 @@
 //   mount(body, options, ctx) → { destroy() }
 // }
 // Types de champs : text, textarea, list, number, range, toggle, select, color,
-// folder, image, checklist, location (lieu : automatique ou ville). Propriétés : key, label, default, min, max, step, choices,
+// folder, image, checklist, location (lieu : automatique ou ville),
+// launcher (catégories et applications du lanceur). Propriétés : key, label, default, min, max, step, choices,
 // hint, showIf(options) → bool.
 // ctx : { api, editing, signal } — `signal` (AbortSignal) est déclenché au démontage.
 //
@@ -29,6 +30,7 @@ import moon from "./moon.js";
 import media from "./media.js";
 import calendar from "./calendar.js";
 import visualizer from "./visualizer.js";
+import launcher from "./launcher.js";
 
-export const WIDGET_LIST = [clock, weather, calendar, media, visualizer, sysinfo, rss, carousel, sun, moon, text];
+export const WIDGET_LIST = [clock, launcher, weather, calendar, media, visualizer, sysinfo, rss, carousel, sun, moon, text];
 export const WIDGETS = Object.fromEntries(WIDGET_LIST.map((w) => [w.type, w]));

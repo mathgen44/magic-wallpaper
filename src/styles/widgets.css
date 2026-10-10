@@ -438,3 +438,63 @@
 .wbody.w-visualizer { padding: 0.5em 0.7em; }
 .viz { width: 100%; height: 100%; display: block; }
 
+
+/* ---- Lanceur d'applications --------------------------------------------- */
+.launcher { height: 100%; display: flex; flex-direction: column; --lc-scale: 1; }
+.lc-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.6em; }
+.lc-pos-left .lc-body { flex-direction: row; }
+.lc-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5em, 1fr)); gap: 0.5em; align-content: start; flex: none; }
+.launcher:not(.open) .lc-tiles { flex: 1; overflow: hidden; grid-auto-rows: minmax(3.2em, 1fr); align-content: stretch; }
+/* tiroirs fermés : grandes tuiles qui occupent toute la brique */
+.launcher:not(.open) .lc-tile { flex-direction: column; justify-content: center; gap: 0.3em; text-align: center; position: relative; }
+.launcher:not(.open) .lc-tile-ico { width: min(2.4em, 45cqh); height: min(2.4em, 45cqh); }
+.launcher:not(.open) .lc-tile-name { flex: none; max-width: 100%; }
+.launcher:not(.open) .lc-tile-count { position: absolute; top: 0.5em; right: 0.7em; }
+.lc-tile {
+  --c: var(--accent);
+  display: flex; align-items: center; gap: 0.55em; padding: 0.55em 0.7em; border-radius: calc(var(--radius) * var(--ui) * 0.6);
+  background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+  min-width: 0; transition: background 0.2s, transform 0.2s;
+}
+.lc-tile.active { background: color-mix(in srgb, var(--c) 32%, transparent); border-color: var(--c); }
+.lc-tile-ico { width: 1.6em; height: 1.6em; flex: none; color: var(--c); display: inline-flex; }
+.lc-tile-ico svg { width: 100%; height: 100%; }
+.lc-tile-name { flex: 1; min-width: 0; font-size: 0.85em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-tile-count { font-size: 0.68em; color: var(--muted); }
+/* tiroir ouvert : les catégories se replient en bande d'icônes */
+.launcher.open .lc-tiles { display: flex; flex-wrap: nowrap; overflow: hidden; gap: 0.35em; }
+.launcher.open .lc-tile { padding: 0.4em; flex: none; }
+.launcher.open .lc-tile .lc-tile-name, .launcher.open .lc-tile .lc-tile-count { display: none; }
+.launcher.open .lc-tile.active .lc-tile-name { display: block; flex: none; }
+.lc-pos-left .lc-tiles { grid-template-columns: 1fr; width: 11em; }
+.lc-pos-left.open .lc-tiles { flex-direction: column; width: auto; }
+.lc-drawer {
+  --c: var(--accent);
+  flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 0.5em;
+  border-top: 2px solid var(--c); padding-top: 0.5em; animation: lc-open 0.35s cubic-bezier(.2, .8, .2, 1);
+}
+.lc-pos-left .lc-drawer { border-top: none; border-left: 2px solid var(--c); padding: 0 0 0 0.7em; animation-name: lc-open-left; }
+.lc-drawer[hidden] { display: none; }
+@keyframes lc-open { from { opacity: 0; transform: translateY(-0.6em); } }
+@keyframes lc-open-left { from { opacity: 0; transform: translateX(-0.6em); } }
+.lc-head { display: flex; align-items: center; gap: 0.5em; flex: none; }
+.lc-head-ico { width: 1.2em; height: 1.2em; display: inline-flex; }
+.lc-head-ico svg { width: 100%; height: 100%; }
+.lc-head-name { font-weight: 600; font-size: 0.9em; }
+.lc-head-count { font-size: 0.7em; color: var(--muted); }
+.lc-spacer { flex: 1; }
+.lc-page { font-size: 0.7em; color: var(--muted); }
+.lc-nav, .lc-close {
+  width: 1.5em; height: 1.5em; display: inline-grid; place-items: center; border-radius: 50%;
+  background: color-mix(in srgb, var(--fg) 10%, transparent); font-size: 0.95em; line-height: 1;
+}
+.lc-grid { flex: 1; min-height: 0; display: grid; gap: 0.5em; align-content: start; overflow: hidden; }
+.lc-app { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.3em; min-width: 0; padding: 0.3em 0.2em; border-radius: 0.6em; }
+.lc-ico { width: calc(2.6em * var(--lc-scale)); height: calc(2.6em * var(--lc-scale)); object-fit: contain; filter: drop-shadow(0 0.15em 0.3em rgba(0, 0, 0, 0.35)); }
+.lc-ico-empty { display: grid; place-items: center; border-radius: 0.6em; background: color-mix(in srgb, var(--c) 35%, transparent); font-weight: 700; font-size: calc(1.2em * var(--lc-scale)); }
+.lc-name { font-size: 0.7em; text-align: center; line-height: 1.2; max-width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.lc-grid.covers .lc-app { padding: 0; gap: 0.25em; }
+.lc-cover { width: 100%; flex: 1; min-height: 0; border-radius: 0.5em; background: center / cover no-repeat; box-shadow: 0 0.25em 0.8em rgba(0, 0, 0, 0.4); }
+.lc-grid.covers .lc-name { -webkit-line-clamp: 1; }
+.lc-cover-icon { display: grid; place-items: center; background: color-mix(in srgb, var(--c) 18%, color-mix(in srgb, var(--fg) 6%, transparent)); }
+.lc-empty { color: var(--muted); font-size: 0.8em; padding: 0.5em 0; }

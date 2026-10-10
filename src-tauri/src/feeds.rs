@@ -24,7 +24,7 @@ pub struct FeedResult {
 
 pub fn client() -> reqwest::Client {
     reqwest::Client::builder()
-        .user_agent("DynamicBackground/0.1 (+https://github.com/mathgen44)")
+        .user_agent("MagicWallpaper/0.5 (+https://github.com/mathgen44/magic-wallpaper)")
         .timeout(Duration::from_secs(20))
         .build()
         .expect("client HTTP")

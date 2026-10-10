@@ -113,6 +113,32 @@ mock.mediaInfo = () => {
   return { available: true, app: "Spotify.exe", title, artist, album, playing: m.playing, position_ms: pos, duration_ms: 210000, updated_ms: Date.now(), thumbnail: "data:image/svg+xml;utf8," + svg, can_prev: true, can_next: true, can_play_pause: true };
 };
 
+// Applications simulées pour le lanceur.
+mock.apps = () => {
+  const list = [
+    ["Steam", "games"], ["Epic Games Launcher", "games"], ["Battle.net", "games"], ["Spotify", "media"], ["VLC media player", "media"],
+    ["Lecteur multimédia", "media"], ["Plex", "media"], ["Photoshop", "creative"], ["Blender", "creative"], ["GIMP", "creative"],
+    ["OBS Studio", "creative"], ["DaVinci Resolve", "creative"], ["Krita", "creative"], ["Audacity", "creative"], ["Word", "office"],
+    ["Excel", "office"], ["PowerPoint", "office"], ["Obsidian", "office"], ["LibreOffice", "office"], ["Firefox", "internet"],
+    ["Chrome", "internet"], ["Discord", "internet"], ["Thunderbird", "internet"], ["Visual Studio Code", "dev"], ["Docker Desktop", "dev"],
+    ["Windows Terminal", "dev"], ["GitHub Desktop", "dev"], ["PuTTY", "dev"], ["7-Zip", "utils"], ["Everything", "utils"],
+    ["PowerToys", "utils"], ["HWiNFO", "utils"], ["Calculatrice", "utils"], ["Bloc-notes", "utils"], ["MSI Afterburner", "utils"],
+    ["Mystère", "other"],
+  ];
+  const games = ["Cyberpunk 2077", "Baldur's Gate 3", "Hollow Knight", "Factorio", "Elden Ring", "Stardew Valley", "Satisfactory", "Hades II", "Alan Wake 2"];
+  const icon = (name, hue) =>
+    "data:image/svg+xml;utf8," +
+    `<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect x='4' y='4' width='56' height='56' rx='14' fill='hsl(${hue},65%,52%)'/><text x='32' y='42' font-family='Segoe UI,sans-serif' font-size='28' font-weight='700' text-anchor='middle' fill='white'>${name[0]}</text></svg>`.replace(/#/g, "%23");
+  const cover = (name, hue) =>
+    "data:image/svg+xml;utf8," +
+    `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='450'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='hsl(${hue},60%,45%)'/><stop offset='1' stop-color='hsl(${hue + 40},55%,15%)'/></linearGradient></defs><rect width='300' height='450' fill='url(%23g)'/><text x='150' y='400' font-family='Segoe UI,sans-serif' font-size='30' font-weight='700' text-anchor='middle' fill='white'>${name.replace(/'/g, "’")}</text></svg>`.replace(/#/g, "%23");
+  const h = (s) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
+  return [
+    ...list.map(([name, category]) => ({ id: "win:" + name, name, source: "windows", category, icon: icon(name, h(name)) })),
+    ...games.map((name, i) => ({ id: "steam:" + (1000 + i), name, source: "steam", category: "games", icon: icon(name, h(name)), cover: cover(name, h(name)) })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+};
+
 // ------------------------------------------------------------------ API ----
 export const api = {
   async getConfig() {
@@ -247,6 +273,26 @@ export const api = {
     window.addEventListener("mock-audio", h);
     return () => window.removeEventListener("mock-audio", h);
   },
+  async listApps(refresh = false) {
+    if (isTauri) return invoke("list_apps", { refresh });
+    await new Promise((r) => setTimeout(r, 150));
+    return mock.apps();
+  },
+  /** Lance une application détectée ({ id }) ou personnalisée ({ target }). */
+  async launchApp({ id, target }) {
+    if (isTauri) return invoke("launch_app", { id: id || null, target: target || null });
+    console.info("[simulation] lancement", id || target);
+  },
+  /** Adresse affichable d'un fichier local déjà autorisé par le backend. */
+  fileSrc(path) {
+    if (!path || /^(https?:|data:|blob:)/.test(path)) return path || "";
+    return isTauri ? convertFileSrc(path) : path;
+  },
+  async pickProgram() {
+    if (!isTauri) return prompt("Chemin du programme ou adresse :", "C:\\Program Files\\");
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    return open({ title: "Choisir un programme", filters: [{ name: "Programmes et raccourcis", extensions: ["exe", "lnk", "url", "bat", "cmd"] }, { name: "Tous les fichiers", extensions: ["*"] }] });
+  },
   async reloadWallpapers() {
     if (isTauri) return invoke("reload_wallpapers");
   },
@@ -268,7 +314,7 @@ export const api = {
   async pickSavePath() {
     if (!isTauri) return null;
     const { save } = await import("@tauri-apps/plugin-dialog");
-    return save({ title: "Exporter la disposition", defaultPath: "mon-fond.dynbg.json", filters: [{ name: "Disposition", extensions: ["json"] }] });
+    return save({ title: "Exporter la disposition", defaultPath: "mon-fond.magicwp.json", filters: [{ name: "Disposition", extensions: ["json"] }] });
   },
   async pickOpenPath() {
     if (!isTauri) return null;

@@ -39,9 +39,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: "Dynamic Background ${{ github.ref_name }}"
+          releaseName: "Magic Wallpaper ${{ github.ref_name }}"
           releaseBody: |
-            Téléchargez **Dynamic Background_x.y.z_x64-setup.exe** ci-dessous et lancez-le.
+            Téléchargez **Magic Wallpaper_x.y.z_x64-setup.exe** ci-dessous et lancez-le.
+            Une ancienne installation « Dynamic Background » est retirée automatiquement (vos dispositions sont conservées).
             L'installation se fait pour l'utilisateur courant, sans droits administrateur.
           releaseDraft: true
           prerelease: false

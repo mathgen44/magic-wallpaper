@@ -1,4 +1,4 @@
-//! Dynamic Background — fond d'écran dynamique modulaire pour Windows.
+//! Magic Wallpaper — fond d'écran dynamique modulaire pour Windows.
 //! © mathgen44 — licence MIT.
 //!
 //! Architecture :
@@ -9,6 +9,7 @@
 //! * des commandes Rust pour ce que la WebView ne sait pas faire seule : infos système,
 //!   lecture des flux RSS (CORS), listing de dossiers d'images, stockage de la config.
 
+mod apps;
 mod audio;
 mod config;
 mod desktop;
@@ -17,6 +18,7 @@ mod gpu;
 mod ics;
 mod images;
 mod input;
+mod legacy;
 mod media;
 mod net;
 mod sysmon;
@@ -61,7 +63,7 @@ struct Http(reqwest::Client);
 // ---------------------------------------------------------------------------
 
 fn log_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_log_dir().ok().map(|d| d.join("dynamic-background.log"))
+    app.path().app_log_dir().ok().map(|d| d.join("magic-wallpaper.log"))
 }
 
 fn log(app: &AppHandle, msg: impl AsRef<str>) {
@@ -109,7 +111,7 @@ fn url_encode(s: &str) -> String {
 fn create_wall(app: &AppHandle, label: &str, index: usize, name: &str, rect: desktop::Rect) -> Result<Wall, String> {
     let url = WebviewUrl::App(format!("wallpaper.html?screen={index}&name={}", url_encode(name)).into());
     let win = WebviewWindowBuilder::new(app, label, url)
-        .title("Dynamic Background")
+        .title("Magic Wallpaper")
         .decorations(false)
         .resizable(false)
         .skip_taskbar(true)
@@ -306,7 +308,7 @@ fn open_editor(app: &AppHandle) {
         return;
     }
     let res = WebviewWindowBuilder::new(app, "editor", WebviewUrl::App("index.html".into()))
-        .title("Dynamic Background — Éditeur")
+        .title("Magic Wallpaper — Éditeur")
         .inner_size(1440.0, 900.0)
         .min_inner_size(1100.0, 700.0)
         .center()
@@ -453,6 +455,43 @@ async fn calendar_events(http: State<'_, Http>, cache: State<'_, net::NetCache>,
     Ok(res)
 }
 
+/// Applications installées (cache de 10 min ; `refresh` force une nouvelle analyse).
+#[tauri::command]
+async fn list_apps(app: AppHandle, refresh: Option<bool>) -> Result<Vec<apps::AppEntry>, String> {
+    let a = app.clone();
+    let list = tauri::async_runtime::spawn_blocking(move || a.state::<apps::AppsState>().list(refresh.unwrap_or(false)))
+        .await
+        .map_err(|e| e.to_string())?;
+    // Images locales (Steam) servies par le protocole asset.
+    let scope = app.asset_protocol_scope();
+    for e in &list {
+        for p in [&e.icon_path, &e.cover].into_iter().flatten() {
+            let _ = scope.allow_file(p);
+        }
+    }
+    Ok(list)
+}
+
+/// Lance une application détectée (`id`) ou personnalisée (`target` : chemin ou adresse).
+#[tauri::command]
+fn launch_app(app: AppHandle, id: Option<String>, target: Option<String>) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    if let Some(entry) = id.as_deref().and_then(|i| app.state::<apps::AppsState>().find(i)) {
+        log(&app, format!("Lancement : {}", entry.name));
+        return match apps::launch_of(&entry) {
+            apps::Launch::Shell(p) => apps::launch_shell(&p),
+            apps::Launch::Url(u) => app.opener().open_url(u, None::<&str>).map_err(|e| e.to_string()),
+        };
+    }
+    let t = target.filter(|t| !t.trim().is_empty()).ok_or("Application introuvable (relancez la détection)")?;
+    log(&app, format!("Lancement : {t}"));
+    if t.contains("://") {
+        app.opener().open_url(t, None::<&str>).map_err(|e| e.to_string())
+    } else {
+        app.opener().open_path(t, None::<&str>).map_err(|e| e.to_string())
+    }
+}
+
 /// Maintient la capture audio active (à appeler régulièrement par les visualiseurs).
 #[tauri::command]
 fn audio_keepalive(app: AppHandle, state: State<'_, audio::AudioState>) {
@@ -506,7 +545,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let pause_item = pause.clone();
     TrayIconBuilder::with_id("main")
         .icon(app.default_window_icon().cloned().expect("icône"))
-        .tooltip("Dynamic Background")
+        .tooltip("Magic Wallpaper")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id.as_ref() {
@@ -547,6 +586,7 @@ pub fn run() {
         .manage(net::NetCache::default())
         .manage(media::MediaState::default())
         .manage(audio::AudioState::default())
+        .manage(apps::AppsState::default())
         .invoke_handler(tauri::generate_handler![
             get_config,
             save_config,
@@ -564,13 +604,16 @@ pub fn run() {
             media_info,
             calendar_events,
             audio_keepalive,
+            list_apps,
+            launch_app,
             media_control,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
+            let had_autostart = legacy::migrate(&handle);
             let first_run = !config::exists(&handle);
             log(&handle, format!("Démarrage v{} (premier lancement : {first_run})", app.package_info().version));
-            if first_run {
+            if first_run || had_autostart {
                 // Lancement automatique avec Windows activé par défaut (désactivable dans l'éditeur).
                 if let Err(e) = handle.autolaunch().enable() {
                     log(&handle, format!("Activation du démarrage automatique impossible : {e}"));

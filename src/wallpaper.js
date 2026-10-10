@@ -35,6 +35,8 @@ function activate(x, y, count) {
     if (target.dataset.href) api.openUrl(target.dataset.href).catch((e) => console.error(e));
     const [ns, act] = (target.dataset.action || "").split(":");
     if (ns === "media") api.mediaControl(act).catch((e) => console.error(e));
+    // Autres actions : traitées par la brique elle-même.
+    else if (ns) target.dispatchEvent(new CustomEvent("wp-action", { bubbles: true, detail: { action: target.dataset.action } }));
   }
 }
 api.onDesktopClick((c) => activate(c.x, c.y, c.count));

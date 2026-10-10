@@ -2,6 +2,7 @@
 import { api } from "../api.js";
 import { el } from "../util.js";
 import { searchPlaces } from "../widgets/location.js";
+import { launcherControl } from "./launcher-field.js";
 
 let seq = 0;
 
@@ -142,6 +143,8 @@ function control(def, value, emit, id) {
         set: (vals) => boxes.forEach((b, i) => (b.cb.checked = (vals || []).includes(def.choices[i][0]))),
       };
     }
+    case "launcher":
+      return launcherControl(value, emit, id);
     case "location": {
       let cur = value || { mode: "auto" };
       const mode = el("select", { id }, el("option", { value: "auto" }, "Automatique (selon la connexion internet)"), el("option", { value: "city" }, "Choisir une ville…"));

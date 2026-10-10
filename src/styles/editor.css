@@ -338,3 +338,32 @@ details summary { cursor: pointer; color: var(--e-muted); margin-top: 6px; }
   border-radius: var(--e-radius); padding: 6px 10px; cursor: pointer;
 }
 .loc-item:hover { border-color: var(--e-accent); }
+
+/* ---- champ « lanceur » ---- */
+.field-launcher .field-label { display: none; }
+.lf { display: flex; flex-direction: column; gap: 8px; }
+.lf-title { font-weight: 600; margin-top: 6px; }
+.lf p { margin: 0; }
+.lf-cats { display: flex; flex-direction: column; gap: 4px; }
+.lf-cat { display: flex; align-items: center; gap: 6px; }
+.lf-cat input[type="text"] { flex: 1; min-width: 0; padding: 4px 8px; }
+.lf-cat input[type="color"] { width: 26px; height: 26px; padding: 0; border: none; background: none; flex: none; }
+.lf-cat .btn-icon { width: 24px; height: 24px; }
+.lf-cat-ico { width: 18px; height: 18px; flex: none; display: inline-flex; }
+.lf-cat-ico svg { width: 100%; height: 100%; }
+.lf-tools { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.lf-tools input { grid-column: 1 / -1; }
+.lf-list { display: flex; flex-direction: column; gap: 2px; max-height: 380px; overflow: auto; border: 1px solid var(--e-line); border-radius: var(--e-radius); padding: 4px; }
+.lf-app { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 6px; }
+.lf-app:hover { background: var(--e-panel-2); }
+.lf-ico { width: 20px; height: 20px; flex: none; border-radius: 4px; object-fit: contain; }
+.lf-ico-empty { display: inline-grid; place-items: center; background: var(--e-panel-2); font-size: 11px; }
+.lf-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lf-src { margin-left: 6px; font-size: 10px; color: var(--e-muted); border: 1px solid var(--e-line); border-radius: 4px; padding: 0 4px; }
+.lf-sel { width: 118px !important; flex: none; padding: 3px 6px !important; font-size: 12px; }
+.lf-star { width: 24px; height: 24px; color: var(--e-muted); font-size: 15px; }
+.lf-star.on { color: #f5b84a; }
+.lf-app .btn-icon.danger-text, .lf-cat .btn-icon.danger-text { color: var(--e-danger); }
+.lf-add { display: flex; flex-direction: column; gap: 6px; }
+.lf-add-row { display: flex; gap: 6px; }
+.lf-add-row select { flex: 1; }
