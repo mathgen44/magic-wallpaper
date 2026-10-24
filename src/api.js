@@ -194,6 +194,10 @@ export const api = {
     if (isTauri) return invoke("system_info");
     return mock.sys();
   },
+  async hwinfoTemps(cpu = "", gpu = "") {
+    if (isTauri) return invoke("hwinfo_temps", { cpu, gpu });
+    return { cpu: 58, gpu: 47, source: "shared-memory", sensors: [] };
+  },
   async exportConfig(path, config) {
     if (isTauri) return invoke("export_config", { path, config });
   },

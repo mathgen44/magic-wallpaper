@@ -17,6 +17,7 @@ mod feeds;
 mod gpu;
 mod ics;
 mod images;
+mod hwinfo;
 mod input;
 mod legacy;
 mod media;
@@ -392,6 +393,12 @@ fn system_info(state: State<'_, sysmon::SysState>) -> sysmon::SysInfo {
     state.0.lock().unwrap().snapshot()
 }
 
+/// Températures CPU / GPU lues dans HWiNFO (mémoire partagée ou registre « Gadget »).
+#[tauri::command]
+async fn hwinfo_temps(cpu: Option<String>, gpu: Option<String>) -> hwinfo::HwinfoTemps {
+    hwinfo::read(cpu.as_deref().unwrap_or(""), gpu.as_deref().unwrap_or(""))
+}
+
 #[tauri::command]
 fn export_config(path: String, config: Value) -> Result<(), String> {
     let data = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
@@ -595,6 +602,7 @@ pub fn run() {
             allow_file,
             fetch_feeds,
             system_info,
+            hwinfo_temps,
             export_config,
             import_config,
             reload_wallpapers,

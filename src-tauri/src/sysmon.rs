@@ -33,7 +33,7 @@ pub struct SysInfo {
     pub os: String,
     pub processes: usize,
     pub gpus: Vec<GpuInfo>,
-    /// °C, si Windows l'expose (souvent indisponible sans LibreHardwareMonitor).
+    /// °C, si Windows l'expose (souvent indisponible sans HWiNFO ou LibreHardwareMonitor).
     pub cpu_temp: Option<f32>,
 }
 

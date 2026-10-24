@@ -29,6 +29,8 @@ export function lhmTemps(root) {
   return { cpu: best(cpu, /package|tctl|tdie/i), gpu: best(gpu.filter(([t]) => !/hot ?spot|memory|junction/i.test(t)), /gpu core|^gpu$/i) ?? best(gpu, /gpu/i) };
 }
 
+const tempSource = (o) => o.tempSource || "hwinfo";
+
 const fmtTemp = (t) => (t == null ? "—" : `${Math.round(t)} °C`);
 
 const METRICS = [
@@ -108,8 +110,10 @@ export default {
     { key: "disks", label: "Disques à afficher", type: "text", default: "", hint: "Ex. : C: D:  — vide = tous", showIf: (o) => (o.metrics || []).includes("disk") },
     { key: "style", label: "Style", type: "select", default: "bars", choices: [["bars", "Barres"], ["rings", "Anneaux"], ["minimal", "Texte compact"]] },
     { key: "history", label: "Courbes d'historique (CPU, réseau)", type: "toggle", default: true, showIf: (o) => o.style !== "minimal" },
-    { key: "lhm", label: "Températures via LibreHardwareMonitor", type: "toggle", default: false, hint: "Windows n'expose souvent pas la température du processeur : lancez LibreHardwareMonitor avec « Remote Web Server » activé.", showIf: (o) => (o.metrics || []).includes("temps") },
-    { key: "lhmUrl", label: "Adresse de LibreHardwareMonitor", type: "text", default: "http://localhost:8085/data.json", showIf: (o) => o.lhm && (o.metrics || []).includes("temps") },
+    { key: "tempSource", label: "Source des températures", type: "select", default: "hwinfo", choices: [["windows", "Windows seul"], ["hwinfo", "HWiNFO"], ["lhm", "LibreHardwareMonitor"]], hint: "Windows n'expose souvent pas la température du processeur. HWiNFO : activez « Shared Memory Support » dans ses réglages (ou cochez « Report value in Gadget » sur les capteurs voulus).", showIf: (o) => (o.metrics || []).includes("temps") },
+    { key: "hwinfoCpu", label: "Capteur CPU dans HWiNFO", type: "text", default: "", hint: "Vide = automatique. Ex. : CPU Package, Core Max, ou « Carte mère > CPU »", showIf: (o) => tempSource(o) === "hwinfo" && (o.metrics || []).includes("temps") },
+    { key: "hwinfoGpu", label: "Capteur GPU dans HWiNFO", type: "text", default: "", hint: "Vide = automatique. Ex. : GPU Temperature, GPU Hot Spot", showIf: (o) => tempSource(o) === "hwinfo" && (o.metrics || []).includes("temps") },
+    { key: "lhmUrl", label: "Adresse de LibreHardwareMonitor", type: "text", default: "http://localhost:8085/data.json", showIf: (o) => tempSource(o) === "lhm" && (o.metrics || []).includes("temps") },
     { key: "refresh", label: "Actualisation (s)", type: "number", default: 2, min: 1, max: 60 },
   ],
   mount(body, o, ctx) {
@@ -232,9 +236,10 @@ export default {
       });
       if (parts.tcpu) {
         const g = d.gpus.find((x) => x.name === parts.gpuList[0]?.name);
-        const tc = lhm.cpu ?? d.cpu_temp;
-        const tg = g?.temp ?? lhm.gpu;
-        set(parts.tcpu, tc ?? 0, fmtTemp(tc), tc == null && !o.lhm ? "indisponible : voir réglages" : "");
+        const tc = ext.cpu ?? d.cpu_temp;
+        const tg = src === "hwinfo" ? ext.gpu ?? g?.temp : g?.temp ?? ext.gpu;
+        const why = src === "windows" ? "indisponible : voir réglages" : src === "hwinfo" && !ext.source ? "HWiNFO introuvable" : "";
+        set(parts.tcpu, tc ?? 0, fmtTemp(tc), tc == null ? why : "");
         set(parts.tgpu, tg ?? 0, fmtTemp(tg), "");
       }
       parts.disks?.forEach((p, i) => {
@@ -253,21 +258,23 @@ export default {
       if (parts.host) parts.host.replaceChildren(el("div", { class: "host-name" }, d.host), el("div", { class: "host-os" }, d.os), has("cpu") ? el("div", { class: "host-os" }, d.cpu_brand) : "");
     };
 
-    let lhm = { cpu: null, gpu: null };
-    let lhmAt = 0;
-    const readLhm = async () => {
-      if (!o.lhm || !has("temps") || Date.now() - lhmAt < 2000) return;
-      lhmAt = Date.now();
+    // Températures d'un outil externe (HWiNFO ou LibreHardwareMonitor).
+    const src = tempSource(o);
+    let ext = { cpu: null, gpu: null };
+    let extAt = 0;
+    const readExt = async () => {
+      if (src === "windows" || !has("temps") || Date.now() - extAt < 2000) return;
+      extAt = Date.now();
       try {
-        lhm = lhmTemps(await ctx.api.httpJson(o.lhmUrl || "http://localhost:8085/data.json", 2));
+        ext = src === "hwinfo" ? await ctx.api.hwinfoTemps(o.hwinfoCpu || "", o.hwinfoGpu || "") : lhmTemps(await ctx.api.httpJson(o.lhmUrl || "http://localhost:8085/data.json", 2));
       } catch {
-        lhm = { cpu: null, gpu: null };
+        ext = { cpu: null, gpu: null };
       }
     };
 
     let timer;
     const tick = async () => {
-      await readLhm();
+      await readExt();
       try {
         const d = await ctx.api.systemInfo();
         if (!ctx.signal.aborted) update(d);

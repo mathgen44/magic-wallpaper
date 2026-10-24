@@ -14,6 +14,14 @@ export function defaultsFor(type) {
   return o;
 }
 
+/** Reprise des options d'anciennes versions. */
+function migrateOptions(type, o, saved) {
+  // v0.5.1 : l'interrupteur « lhm » devient le choix « Source des températures ».
+  if (type === "sysinfo" && !("tempSource" in saved) && saved.lhm) o.tempSource = "lhm";
+  delete o.lhm;
+  return o;
+}
+
 export function makeWidget(type, x = 0, y = 0) {
   const w = WIDGETS[type];
   return { id: uid(), type, x, y, w: w.size.w, h: w.size.h, options: defaultsFor(type), style: { ...DEFAULT_STYLE } };
@@ -59,7 +67,7 @@ function normalizeWidgets(list) {
       y: +w.y || 0,
       w: Math.max(1, +w.w || 4),
       h: Math.max(1, +w.h || 4),
-      options: { ...defaultsFor(w.type), ...(w.options || {}) },
+      options: migrateOptions(w.type, { ...defaultsFor(w.type), ...(w.options || {}) }, w.options || {}),
       style: { ...DEFAULT_STYLE, ...(w.style || {}) },
     });
   }
