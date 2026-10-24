@@ -450,6 +450,9 @@
 .launcher:not(.open) .lc-tile-ico { width: min(2.4em, 45cqh); height: min(2.4em, 45cqh); }
 .launcher:not(.open) .lc-tile-name { flex: none; max-width: 100%; }
 .launcher:not(.open) .lc-tile-count { position: absolute; top: 0.5em; right: 0.7em; }
+/* tuiles compactes : hauteur fixe, la carte se réduit autour (voir fit() dans launcher.js) */
+.launcher.lc-compact:not(.open) .lc-tiles { flex: none; grid-auto-rows: calc(5.5em * var(--lc-tile-h, 1)); align-content: start; }
+.launcher.lc-compact:not(.open) .lc-tile-ico { width: min(2.4em, calc(2.4em * var(--lc-tile-h, 1))); height: min(2.4em, calc(2.4em * var(--lc-tile-h, 1))); }
 .lc-tile {
   --c: var(--accent);
   display: flex; align-items: center; gap: 0.55em; padding: 0.55em 0.7em; border-radius: calc(var(--radius) * var(--ui) * 0.6);

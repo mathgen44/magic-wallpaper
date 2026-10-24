@@ -12,6 +12,8 @@ export default {
     { key: "title", label: "Titre", type: "text", default: "" },
     { key: "mode", label: "Fonctionnement", type: "select", default: "drawers", choices: [["drawers", "Tiroirs (s'ouvrent d'un clic)"], ["tabs", "Onglets (une catégorie toujours ouverte)"]] },
     { key: "position", label: "Catégories", type: "select", default: "top", choices: [["top", "En haut"], ["left", "À gauche"]] },
+    { key: "tiles", label: "Tuiles (tiroirs fermés)", type: "select", default: "compact", choices: [["compact", "Compactes (la brique se réduit)"], ["fill", "Remplir toute la brique"]], showIf: (o) => o.mode === "drawers" },
+    { key: "tileHeight", label: "Hauteur des tuiles", type: "range", default: 1, min: 0.5, max: 2.5, step: 0.05, showIf: (o) => o.mode === "drawers" && o.tiles !== "fill" },
     { key: "launch", label: "Lancer une application", type: "select", default: "dblclick", choices: [["dblclick", "Double-clic"], ["click", "Clic"]] },
     { key: "iconSize", label: "Taille des icônes", type: "range", default: 1, min: 0.6, max: 2, step: 0.05 },
     { key: "names", label: "Afficher les noms", type: "toggle", default: true },
@@ -23,7 +25,8 @@ export default {
   ],
   mount(body, o, ctx) {
     const cfg = launcherConfig(o.apps);
-    const root = el("div", { class: `launcher lc-pos-${o.position} lc-mode-${o.mode}`, style: { "--lc-scale": o.iconSize } });
+    const root = el("div", { class: `launcher lc-pos-${o.position} lc-mode-${o.mode}${o.tiles === "fill" ? "" : " lc-compact"}`, style: { "--lc-scale": o.iconSize, "--lc-tile-h": o.tileHeight ?? 1 } });
+    const card = body.closest(".card");
     body.append(root);
     let detected = null;
     let open = null; // catégorie ouverte
@@ -37,6 +40,20 @@ export default {
     const head = el("div", { class: "lc-head" });
     drawer.append(head, grid);
     root.append(...[o.title ? el("div", { class: "widget-title" }, o.title) : null, el("div", { class: "lc-body" }, tiles, drawer)].filter(Boolean));
+
+    // Tuiles compactes : quand tout est fermé, la carte se réduit à la hauteur des tuiles
+    // et reprend toute la hauteur de la brique à l'ouverture d'un tiroir.
+    const fit = () => {
+      if (!card) return;
+      if (open || o.tiles === "fill" || !detected) {
+        card.style.height = "";
+        return;
+      }
+      const pad = parseFloat(getComputedStyle(body).paddingBottom) || 0;
+      const border = parseFloat(getComputedStyle(card).borderBottomWidth) || 0;
+      const h = Math.ceil(tiles.getBoundingClientRect().bottom - card.getBoundingClientRect().top + pad + border);
+      if (h > 0 && card.style.height !== `${h}px`) card.style.height = `${h}px`;
+    };
 
     const apps = () => allApps(detected, cfg);
     const visibleCats = () =>
@@ -135,6 +152,7 @@ export default {
       if (!cats.length) tiles.replaceChildren(el("div", { class: "lc-empty" }, "Aucune catégorie à afficher"));
       const cat = cats.find((c) => c.key === open);
       drawer.hidden = !cat;
+      fit();
       if (cat) {
         drawer.style.setProperty("--c", cat.color);
         // La taille de la grille n'est connue qu'une fois le tiroir affiché.
@@ -156,7 +174,7 @@ export default {
       }
     });
 
-    const ro = new ResizeObserver(() => open && render());
+    const ro = new ResizeObserver(() => (open ? render() : fit()));
     ro.observe(root);
 
     const load = async (refresh = false) => {
@@ -179,6 +197,7 @@ export default {
         clearTimeout(closeTimer);
         clearInterval(refreshTimer);
         ro.disconnect();
+        if (card) card.style.height = "";
       },
     };
   },
