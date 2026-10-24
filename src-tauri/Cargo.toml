@@ -1,6 +1,6 @@
 [package]
 name = "magic-wallpaper"
-version = "0.5.0"
+version = "0.5.1"
 description = "Fond d'écran dynamique modulaire pour Windows"
 authors = ["mathgen44"]
 license = "MIT"
