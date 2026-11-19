@@ -682,12 +682,12 @@ function updateText(st) {
   if (st.available) return `Version ${st.available.version} disponible (installée : ${st.current}).`;
   if (st.error) return `Version ${st.current} — recherche impossible : ${st.error}`;
   if (st.checked_ms) return `Version ${st.current} — à jour (vérifié à ${new Date(st.checked_ms).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}).`;
-  return `Version ${st.current}.`;
+  return `Version ${st.current} — pas encore vérifié (recherche peu après le démarrage).`;
 }
 
 function updatePanel() {
-  const text = el("p", { class: "small" }, updateText(S.update));
-  const download = el("button", { class: "btn primary", hidden: !S.update?.available, onclick: () => openRelease() }, "Télécharger");
+  const text = el("p", { class: "small update-text" }, updateText(S.update));
+  const download = el("button", { class: "btn primary update-download", hidden: !S.update?.available, onclick: () => openRelease() }, "Télécharger");
   const check = el("button", {
     class: "btn",
     onclick: async () => {
@@ -720,6 +720,11 @@ function showUpdate(st) {
     b.textContent = `Mise à jour ${st.available.version} disponible`;
     b.title = "Ouvrir la page de téléchargement";
   }
+  // Panneau « À propos » s'il est affiché.
+  const text = document.querySelector(".update-text");
+  if (text) text.textContent = updateText(st);
+  const dl = document.querySelector(".update-download");
+  if (dl) dl.hidden = !st?.available;
 }
 
 async function exportLayout() {
@@ -987,7 +992,7 @@ async function init() {
   $("#btn-apply").addEventListener("click", apply);
   $("#btn-update").addEventListener("click", openRelease);
   api.checkUpdate().then(showUpdate).catch(() => {});
-  api.onUpdateAvailable(showUpdate);
+  api.onUpdateStatus(showUpdate);
   new ResizeObserver(fitStage).observe($("#stage"));
 
   fitStage();

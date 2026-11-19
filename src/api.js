@@ -321,8 +321,9 @@ export const api = {
     const fake = new URLSearchParams(location.search).get("maj") === "1";
     return { current: "0.5.2", available: fake ? { version: "0.6.0", url: "https://github.com/mathgen44/magic-wallpaper/releases/latest", name: "" } : null, checked_ms: Date.now(), error: null };
   },
-  async onUpdateAvailable(cb) {
-    if (isTauri) return listen("update-available", (e) => cb(e.payload));
+  /** Résultat de chaque vérification (au démarrage, toutes les 12 h, ou forcée). */
+  async onUpdateStatus(cb) {
+    if (isTauri) return listen("update-status", (e) => cb(e.payload));
   },
   async reloadWallpapers() {
     if (isTauri) return invoke("reload_wallpapers");

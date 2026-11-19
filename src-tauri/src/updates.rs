@@ -100,10 +100,11 @@ pub async fn check(app: &AppHandle, client: &reqwest::Client) -> UpdateStatus {
     if let Some(rel) = &status.available {
         crate::log(app, format!("Mise à jour disponible : v{} (installée : v{current})", rel.version));
         crate::show_update_in_tray(app, rel);
-        let _ = app.emit("update-available", status.clone());
     } else if let Some(e) = &status.error {
         crate::log(app, format!("Recherche de mise à jour impossible : {e}"));
     }
+    // Toujours prévenir l'éditeur : il affiche la date et le résultat de la dernière vérification.
+    let _ = app.emit("update-status", status.clone());
     status
 }
 
