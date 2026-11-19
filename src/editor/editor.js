@@ -6,6 +6,7 @@ import { api, isTauri } from "../api.js";
 import { Board } from "../board.js";
 import { defaultConfig, defaultLayout, layoutForScreen, makeWidget, normalize } from "../model.js";
 import { FONTS, PRESETS, presetConfig } from "../themes.js";
+import { PHASES } from "../videobg.js";
 import { WIDGETS, WIDGET_LIST } from "../widgets/index.js";
 import { clamp, clone, el, uid } from "../util.js";
 import { buildForm } from "./fields.js";
@@ -507,7 +508,7 @@ function themePanel() {
           class: `preset${L().theme.preset === key ? " active" : ""}`,
           onclick: () => {
             snapshot();
-            const keepImage = L().background.type === "image";
+            const keepImage = ["image", "video", "dynamic"].includes(L().background.type);
             const pc = presetConfig(key);
             L().theme = pc.theme;
             if (!keepImage) L().background = pc.background;
@@ -537,16 +538,45 @@ function themePanel() {
     { key: "shadow", label: "Ombre portée", type: "toggle" },
     { key: "font", label: "Police", type: "select", choices: FONTS },
   ];
+  const isImg = (b) => b.type === "image";
+  const isVid = (b) => b.type === "video" || b.type === "dynamic";
+  const isDyn = (b) => b.type === "dynamic";
+  const isFixed = (b) => isDyn(b) && b.schedule === "fixed";
+  const hour = (key, label) => ({ key, label, type: "number", min: 0, max: 23, showIf: isFixed });
   const bgDefs = [
-    { key: "type", label: "Type de fond", type: "select", choices: [["color", "Couleur unie"], ["gradient", "Dégradé"], ["image", "Image"]] },
+    { key: "type", label: "Type de fond", type: "select", choices: [["color", "Couleur unie"], ["gradient", "Dégradé"], ["image", "Image"], ["video", "Vidéo"], ["dynamic", "Vidéos selon l'heure"]] },
     { key: "color", label: "Couleur", type: "color", showIf: (b) => b.type === "color" },
     { key: "from", label: "Couleur de départ", type: "color", showIf: (b) => b.type === "gradient" },
     { key: "to", label: "Couleur d'arrivée", type: "color", showIf: (b) => b.type === "gradient" },
     { key: "angle", label: "Angle (°)", type: "range", min: 0, max: 360, step: 5, showIf: (b) => b.type === "gradient" },
-    { key: "image", label: "Image", type: "image", showIf: (b) => b.type === "image" },
-    { key: "fit", label: "Ajustement", type: "select", choices: [["cover", "Remplir"], ["contain", "Ajuster"], ["tile", "Mosaïque"]], showIf: (b) => b.type === "image" },
-    { key: "dim", label: "Assombrir", type: "range", min: 0, max: 0.9, step: 0.05, showIf: (b) => b.type === "image" },
-    { key: "blurImg", label: "Flou de l'image (px)", type: "range", min: 0, max: 30, step: 1, showIf: (b) => b.type === "image" },
+    { key: "image", label: "Image", type: "image", showIf: isImg },
+    { key: "video", label: "Vidéo", type: "video", hint: "MP4 (H.264) ou WebM, lue en boucle et sans le son.", showIf: (b) => b.type === "video" },
+    {
+      key: "pack",
+      label: "Dossier de vidéos",
+      type: "folder",
+      placeholder: "C:\\Users\\…\\Vidéos\\Ambiances",
+      hint: "Les fichiers sont reconnus d'après leur nom : aube, jour, coucher (ou crepuscule), nuit. Les champs ci-dessous remplacent une vidéo du dossier.",
+      showIf: isDyn,
+    },
+    { key: "video_dawn", label: "Aube", type: "video", placeholder: "(dossier)", showIf: isDyn },
+    { key: "video_day", label: "Journée", type: "video", placeholder: "(dossier)", showIf: isDyn },
+    { key: "video_dusk", label: "Coucher de soleil", type: "video", placeholder: "(dossier)", showIf: isDyn },
+    { key: "video_night", label: "Nuit", type: "video", placeholder: "(dossier)", showIf: isDyn },
+    { key: "schedule", label: "Changement d'ambiance", type: "select", choices: [["sun", "Selon le soleil (lever, coucher)"], ["fixed", "À heures fixes"]], showIf: isDyn },
+    { key: "location", label: "Lieu", type: "location", showIf: (b) => isDyn(b) && b.schedule !== "fixed" },
+    { key: "margin", label: "Durée de l'aube et du coucher (min)", type: "range", min: 15, max: 120, step: 5, hint: "Temps passé dans l'ambiance aube après le lever du soleil, et coucher de soleil avant qu'il se couche.", showIf: (b) => isDyn(b) && b.schedule !== "fixed" },
+    hour("dawnAt", "Aube à (h)"),
+    hour("dayAt", "Journée à (h)"),
+    hour("duskAt", "Coucher de soleil à (h)"),
+    hour("nightAt", "Nuit à (h)"),
+    { key: "forcePhase", label: "Ambiance affichée", type: "select", choices: [["auto", "Automatique"], ...PHASES], showIf: isDyn },
+    { key: "fade", label: "Durée du fondu (s)", type: "range", min: 0, max: 15, step: 0.5, showIf: isDyn },
+    { key: "speed", label: "Vitesse de lecture", type: "range", min: 0.25, max: 1.5, step: 0.05, showIf: isVid },
+    { key: "fit", label: "Ajustement", type: "select", choices: [["cover", "Remplir"], ["contain", "Ajuster"], ["tile", "Mosaïque"]], showIf: isImg },
+    { key: "fit", label: "Ajustement", type: "select", choices: [["cover", "Remplir"], ["contain", "Ajuster"]], showIf: isVid },
+    { key: "dim", label: "Assombrir", type: "range", min: 0, max: 0.9, step: 0.05, showIf: (b) => isImg(b) || isVid(b) },
+    { key: "blurImg", label: "Flou (px)", type: "range", min: 0, max: 30, step: 1, showIf: (b) => isImg(b) || isVid(b) },
   ];
   return [
     section("Thèmes prédéfinis", presets),

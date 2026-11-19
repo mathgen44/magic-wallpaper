@@ -174,6 +174,12 @@ export const api = {
     if (isTauri) return (await invoke("list_images", { folder, recursive })).map((p) => convertFileSrc(p));
     return mock.images();
   },
+  /** Vidéos d'un dossier (chemins bruts : leurs noms servent à reconnaître aube / jour / coucher / nuit). */
+  async listVideos(folder) {
+    if (isTauri) return invoke("list_videos", { folder });
+    // Hors Tauri : un dossier servi par Vite, ex. « /videos » → /videos/aube.mp4…
+    return ["aube", "jour", "coucher", "nuit"].map((n) => `${folder.replace(/\/$/, "")}/${n}.mp4`);
+  },
   async fileUrl(path) {
     if (!path) return "";
     if (/^(https?:|data:|blob:)/.test(path)) return path;
@@ -314,6 +320,11 @@ export const api = {
     if (!isTauri) return prompt("Chemin ou URL de l'image :", "");
     const { open } = await import("@tauri-apps/plugin-dialog");
     return open({ title: "Choisir une image", filters: [{ name: "Images", extensions: ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"] }] });
+  },
+  async pickVideo() {
+    if (!isTauri) return prompt("Chemin ou URL de la vidéo :", "");
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    return open({ title: "Choisir une vidéo", filters: [{ name: "Vidéos", extensions: ["mp4", "webm", "m4v", "mov", "mkv"] }] });
   },
   async pickSavePath() {
     if (!isTauri) return null;

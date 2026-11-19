@@ -21,6 +21,20 @@
   inset: -2%; /* marge pour le flou éventuel de l'image */
   background-size: cover;
 }
+/* Fond vidéo : deux vidéos superposées le temps du fondu enchaîné (videobg.js). */
+.bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 4s ease-in-out;
+  pointer-events: none;
+}
+.bg-video.shown {
+  opacity: 1;
+}
 .board-dim {
   position: absolute;
   inset: 0;

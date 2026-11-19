@@ -378,6 +378,15 @@ fn list_images(app: AppHandle, folder: String, recursive: bool) -> Result<Vec<St
     Ok(images::list(&folder, recursive))
 }
 
+/// Vidéos d'un dossier (fond « vidéos selon l'heure ») ; le dossier devient lisible par le fond.
+#[tauri::command]
+fn list_videos(app: AppHandle, folder: String) -> Result<Vec<String>, String> {
+    app.asset_protocol_scope()
+        .allow_directory(&folder, false)
+        .map_err(|e| e.to_string())?;
+    Ok(images::list_videos(&folder))
+}
+
 #[tauri::command]
 fn allow_file(app: AppHandle, path: String) -> Result<(), String> {
     app.asset_protocol_scope().allow_file(&path).map_err(|e| e.to_string())
@@ -599,6 +608,7 @@ pub fn run() {
             save_config,
             get_monitors,
             list_images,
+            list_videos,
             allow_file,
             fetch_feeds,
             system_info,

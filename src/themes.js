@@ -52,7 +52,18 @@ export const PRESETS = {
   },
 };
 
-export const DEFAULT_BACKGROUND = { type: "gradient", color: "#0d1222", from: "#1e2a4a", to: "#070a14", angle: 145, image: "", fit: "cover", dim: 0.2, blurImg: 0 };
+export const DEFAULT_BACKGROUND = {
+  type: "gradient", color: "#0d1222", from: "#1e2a4a", to: "#070a14", angle: 145,
+  image: "", fit: "cover", dim: 0.2, blurImg: 0,
+  // Vidéo (type "video") et vidéos selon l'heure (type "dynamic", voir videobg.js).
+  video: "", speed: 1, fade: 4,
+  pack: "", video_dawn: "", video_day: "", video_dusk: "", video_night: "",
+  schedule: "sun", location: { mode: "auto" }, margin: 45,
+  dawnAt: 6, dayAt: 9, duskAt: 18, nightAt: 21, forcePhase: "auto",
+};
+
+/** Le fond est-il une vidéo (simple ou selon l'heure) ? */
+export const isVideoBackground = (bg) => bg.type === "video" || bg.type === "dynamic";
 
 export function presetConfig(key) {
   const p = PRESETS[key] || PRESETS.nuit;
@@ -76,7 +87,7 @@ export function applyTheme(root, t) {
   s.setProperty("--shadow", t.shadow ? "0 10px 40px rgba(0,0,0,.28)" : "none");
 }
 
-/** Dessine le fond (couleur, dégradé ou image) dans `layer`. */
+/** Dessine le fond (couleur, dégradé ou image) dans `layer`. Les vidéos sont gérées par videobg.js. */
 export async function applyBackground(layer, bg) {
   const s = layer.style;
   s.backgroundImage = "";
@@ -93,6 +104,10 @@ export async function applyBackground(layer, bg) {
       s.backgroundPosition = "center";
       if (bg.blurImg) s.filter = `blur(${bg.blurImg}px)`;
     }
+  } else if (isVideoBackground(bg)) {
+    s.backgroundColor = "#000";
+    if (bg.blurImg) s.filter = `blur(${bg.blurImg}px)`;
   }
-  layer.parentElement?.style.setProperty("--dim", bg.type === "image" ? bg.dim ?? 0 : 0);
+  const dimmed = bg.type === "image" || isVideoBackground(bg);
+  layer.parentElement?.style.setProperty("--dim", dimmed ? bg.dim ?? 0 : 0);
 }

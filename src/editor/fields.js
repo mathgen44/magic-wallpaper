@@ -192,13 +192,14 @@ function control(def, value, emit, id) {
       };
     }
     case "folder":
-    case "image": {
-      const t = el("input", { type: "text", id, value: value || "", placeholder: def.type === "folder" ? "C:\\Users\\…\\Images" : "Fichier ou URL" });
+    case "image":
+    case "video": {
+      const t = el("input", { type: "text", id, value: value || "", placeholder: def.placeholder || (def.type === "folder" ? "C:\\Users\\…\\Images" : "Fichier ou URL") });
       t.addEventListener("change", () => emit(t.value.trim()));
       const b = el("button", {
         class: "btn",
         onclick: async () => {
-          const p = def.type === "folder" ? await api.pickFolder() : await api.pickImage();
+          const p = def.type === "folder" ? await api.pickFolder() : def.type === "video" ? await api.pickVideo() : await api.pickImage();
           if (p) {
             t.value = p;
             emit(p);

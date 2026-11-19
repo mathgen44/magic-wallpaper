@@ -3,7 +3,7 @@
 Fond d'écran dynamique et modulaire pour Windows 10 / 11. On compose son bureau avec des **briques** (horloge, lanceur d'applications, météo, agenda, média en cours, visualiseur audio, infos système façon Rainmeter, flux RSS, carrousel d'images, soleil, lune, texte…) dans un éditeur visuel, et le résultat s'affiche **derrière les icônes du bureau**.
 
 - Éditeur glisser-déposer : on place, déplace et redimensionne les briques sur une grille aimantée
-- Thèmes prêts à l'emploi (Nuit, Aurore, Forêt, Néon, Graphite, Océan, Terminal), entièrement personnalisables : couleurs, transparence, flou, arrondis, police, fond (couleur, dégradé ou image)
+- Thèmes prêts à l'emploi (Nuit, Aurore, Forêt, Néon, Graphite, Océan, Terminal), entièrement personnalisables : couleurs, transparence, flou, arrondis, police, fond (couleur, dégradé, image, vidéo ou vidéos qui suivent l'heure du jour)
 - Multi-écrans : plusieurs dispositions nommées, chacune affectée à un ou plusieurs écrans (ou aucun fond sur un écran donné)
 - Briques interactives : un clic sur une zone vide du bureau ouvre un article RSS ou pilote la lecture (lecture/pause, suivant, précédent)
 - Léger : application Tauri (Rust + WebView2), installeur de quelques Mo, sans droits administrateur
@@ -46,6 +46,19 @@ WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon l'installeur
 | Flux RSS | Flux RSS / Atom / JSON Feed |
 | Carrousel | Dossier d'images ou liste d'adresses |
 
+## Fond vidéo
+
+*Thème → Fond → Type de fond* :
+
+- **Vidéo** : une vidéo personnelle (MP4 H.264 ou WebM), lue en boucle et sans le son. Réglages : vitesse de lecture, remplir / ajuster, assombrir, flou.
+- **Vidéos selon l'heure** : une vidéo par ambiance — **aube**, **journée**, **coucher de soleil**, **nuit** — avec un fondu enchaîné au changement.
+  - Le plus simple : choisir un **dossier** contenant des fichiers nommés `aube`, `jour`, `coucher` (ou `crepuscule`) et `nuit` (les noms anglais `dawn`, `day`, `dusk`/`sunset`, `night` marchent aussi). Chaque ambiance peut aussi être choisie à la main.
+  - Changement **selon le soleil** (heures réelles de lever et de coucher au lieu choisi, comme la brique Soleil) ou **à heures fixes**.
+  - *Ambiance affichée* force une ambiance (pratique pour vérifier ses vidéos).
+  - S'il manque une ambiance, la plus proche est utilisée (aube ↔ coucher, etc.).
+
+Conseils : des plans fixes avec peu de mouvement (eau, nuages, lumières qui clignotent) se prêtent le mieux à une boucle ; préférez des vidéos de 10 à 30 s en 1080p (ou à la définition de l'écran), encodées en H.264 avec un débit modéré — la lecture est décodée par le GPU et la vidéo est mise en pause quand le fond est en pause.
+
 ## Compiler l'installeur
 
 ### Avec GitHub Actions (recommandé)
@@ -81,6 +94,7 @@ wallpaper.html / src/wallpaper.js   Page affichée en fond d'écran (une fenêtr
 src/board.js                 Rendu d'une configuration — partagé par l'éditeur et le fond
 src/widgets/                 Les briques (une par fichier) + registre index.js
 src/themes.js, src/model.js  Thèmes prédéfinis, modèle de configuration
+src/videobg.js               Fond vidéo, ambiances selon l'heure (fondu enchaîné)
 src/astro.js                 Calculs soleil / lune
 src/api.js                   Pont vers Rust (+ données simulées hors Tauri)
 src-tauri/src/
@@ -95,7 +109,7 @@ src-tauri/src/
   ics.rs                     Agendas iCal (récurrences via la crate rrule)
   net.rs                     Requêtes JSON (météo, géolocalisation) avec cache
   feeds.rs                   Récupération + analyse RSS/Atom/JSON Feed (feed-rs)
-  images.rs                  Listing des dossiers d'images
+  images.rs                  Listing des dossiers d'images et de vidéos
 ```
 
 La configuration est enregistrée dans `%APPDATA%\com.mathgen44.magicwallpaper\layout.json`, le journal dans `%LOCALAPPDATA%\com.mathgen44.magicwallpaper\logs\`.
@@ -141,7 +155,7 @@ Types de champs disponibles : `text`, `textarea`, `list`, `number`, `range`, `to
 - Interactivité limitée : seuls les clics (simple ou double) sur une zone vide du bureau sont relayés au fond d'écran. Pas de survol ni de défilement.
 - Pas encore de mise en pause automatique quand une application est en plein écran (jeux).
 - La température du processeur n'est souvent pas exposée par Windows : utilisez LibreHardwareMonitor. Celle du GPU dépend du pilote (WDDM 2.4+).
-- Idées de briques : état des services / Uptime Kuma, Zabbix / Proxmox, Docker, image du jour, vidéo de fond, notes.
+- Idées de briques : état des services / Uptime Kuma, Zabbix / Proxmox, Docker, image du jour, notes.
 
 ## Crédits
 

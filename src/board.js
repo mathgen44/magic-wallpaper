@@ -1,7 +1,8 @@
 // Rendu d'une configuration (thème + fond + briques) dans un conteneur.
 // Utilisé à l'identique par le fond d'écran et par l'aperçu de l'éditeur.
 import { api } from "./api.js";
-import { applyBackground, applyTheme } from "./themes.js";
+import { applyBackground, applyTheme, isVideoBackground } from "./themes.js";
+import { VideoBackground } from "./videobg.js";
 import { WIDGETS } from "./widgets/index.js";
 import { el } from "./util.js";
 
@@ -38,7 +39,10 @@ export class Board {
     const bgKey = JSON.stringify(cfg.background);
     if (bgKey !== this.bgKey) {
       this.bgKey = bgKey;
+      this.video?.destroy();
+      this.video = null;
       applyBackground(this.bg, cfg.background);
+      if (isVideoBackground(cfg.background)) this.video = new VideoBackground(this.bg, cfg.background, api);
     }
 
     const seen = new Set();
@@ -112,6 +116,7 @@ export class Board {
   }
 
   destroy() {
+    this.video?.destroy();
     for (const rec of this.cells.values()) this.unmount(rec);
     this.cells.clear();
     this.root.replaceChildren();
