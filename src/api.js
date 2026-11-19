@@ -314,6 +314,16 @@ export const api = {
     const { open } = await import("@tauri-apps/plugin-dialog");
     return open({ title: "Choisir un programme", filters: [{ name: "Programmes et raccourcis", extensions: ["exe", "lnk", "url", "bat", "cmd"] }, { name: "Tous les fichiers", extensions: ["*"] }] });
   },
+  /** Recherche de mise à jour : { current, available: { version, url, name } | null, checked_ms, error }. */
+  async checkUpdate(force = false) {
+    if (isTauri) return invoke("check_update", { force });
+    // Hors Tauri : `?maj=1` dans l'adresse simule une mise à jour disponible.
+    const fake = new URLSearchParams(location.search).get("maj") === "1";
+    return { current: "0.5.2", available: fake ? { version: "0.6.0", url: "https://github.com/mathgen44/magic-wallpaper/releases/latest", name: "" } : null, checked_ms: Date.now(), error: null };
+  },
+  async onUpdateAvailable(cb) {
+    if (isTauri) return listen("update-available", (e) => cb(e.payload));
+  },
   async reloadWallpapers() {
     if (isTauri) return invoke("reload_wallpapers");
   },

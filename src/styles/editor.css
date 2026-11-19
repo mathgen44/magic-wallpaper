@@ -61,6 +61,7 @@ button { font: inherit; color: inherit; }
 .btn:hover { border-color: #3a4152; background: #232836; }
 .btn.primary { background: var(--e-accent); border-color: var(--e-accent); color: var(--e-accent-ink); font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.08); }
+.btn.update { border-color: var(--e-accent); color: var(--e-accent); font-weight: 600; }
 .btn.primary:disabled { opacity: 0.45; cursor: default; filter: none; }
 .btn.danger { color: var(--e-danger); }
 .btn-icon {

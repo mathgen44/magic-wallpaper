@@ -23,6 +23,7 @@ mod legacy;
 mod media;
 mod net;
 mod sysmon;
+mod updates;
 mod video_themes;
 
 use serde::Serialize;
@@ -59,6 +60,12 @@ struct AppState {
 }
 
 struct Http(reqwest::Client);
+
+/// Menu de la zone de notification (une entrée « mise à jour » y est ajoutée au besoin).
+struct TrayMenu {
+    menu: Menu<tauri::Wry>,
+    update: Mutex<Option<(MenuItem<tauri::Wry>, String)>>,
+}
 
 // ---------------------------------------------------------------------------
 // Journal (utile pour diagnostiquer l'intégration au bureau sur une machine donnée)
@@ -404,6 +411,47 @@ fn open_video_themes_folder(app: AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// État de la recherche de mise à jour ; `force` relance une vérification immédiate.
+#[tauri::command]
+async fn check_update(app: AppHandle, http: State<'_, Http>, force: Option<bool>) -> Result<updates::UpdateStatus, String> {
+    let known = app.state::<updates::UpdateState>().0.lock().unwrap().clone();
+    // Jamais vérifié (réglage désactivé, ou éditeur ouvert avant la 1re vérification) : on ne force pas.
+    if force.unwrap_or(false) {
+        return Ok(updates::check(&app, &http.0).await);
+    }
+    let mut s = known;
+    s.current = app.package_info().version.to_string();
+    Ok(s)
+}
+
+/// Ajoute (ou met à jour) l'entrée « Mise à jour disponible » en tête du menu de la zone de notification.
+fn show_update_in_tray(app: &AppHandle, rel: &updates::Release) {
+    let label = format!("Mise à jour disponible : v{}…", rel.version);
+    let a = app.clone();
+    let url = rel.url.clone();
+    let _ = app.run_on_main_thread(move || {
+        let Some(tm) = a.try_state::<TrayMenu>() else { return };
+        let mut slot = tm.update.lock().unwrap();
+        match slot.as_mut() {
+            Some((item, u)) => {
+                let _ = item.set_text(&label);
+                *u = url;
+            }
+            None => {
+                let Ok(item) = MenuItem::with_id(&a, "update", &label, true, None::<&str>) else { return };
+                let _ = tm.menu.insert(&item, 0);
+                if let Ok(sep) = PredefinedMenuItem::separator(&a) {
+                    let _ = tm.menu.insert(&sep, 1);
+                }
+                *slot = Some((item, url));
+            }
+        }
+        if let Some(tray) = a.tray_by_id("main") {
+            let _ = tray.set_tooltip(Some(format!("Magic Wallpaper — {label}")));
+        }
+    });
+}
+
 #[tauri::command]
 fn allow_file(app: AppHandle, path: String) -> Result<(), String> {
     app.asset_protocol_scope().allow_file(&path).map_err(|e| e.to_string())
@@ -589,6 +637,18 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 rebuild(app);
             }
             "reload" => rebuild(app),
+            "update" => {
+                use tauri_plugin_opener::OpenerExt;
+                let url = app
+                    .state::<TrayMenu>()
+                    .update
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .map(|(_, u)| u.clone())
+                    .unwrap_or_else(|| updates::RELEASES.to_string());
+                let _ = app.opener().open_url(url, None::<&str>);
+            }
             "quit" => app.exit(0),
             _ => {}
         })
@@ -598,6 +658,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .build(app)?;
+    app.manage(TrayMenu { menu, update: Mutex::new(None) });
     Ok(())
 }
 
@@ -620,6 +681,7 @@ pub fn run() {
         .manage(media::MediaState::default())
         .manage(audio::AudioState::default())
         .manage(apps::AppsState::default())
+        .manage(updates::UpdateState::default())
         .invoke_handler(tauri::generate_handler![
             get_config,
             save_config,
@@ -628,6 +690,7 @@ pub fn run() {
             list_videos,
             video_themes,
             open_video_themes_folder,
+            check_update,
             allow_file,
             fetch_feeds,
             system_info,
@@ -660,6 +723,7 @@ pub fn run() {
             rebuild(&handle);
             spawn_watchdog(handle.clone());
             input::install(handle.clone());
+            updates::spawn(handle.clone(), feeds::client());
             let autostarted = std::env::args().any(|a| a == "--autostart");
             if !autostarted {
                 open_editor(&handle);

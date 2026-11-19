@@ -24,6 +24,7 @@ WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon l'installeur
 ## Utilisation
 
 - **Icône de la zone de notification** : clic gauche = éditeur ; clic droit = pause, recharger, quitter.
+- **Mises à jour** : l'application vérifie sur GitHub, 20 s après le démarrage puis toutes les 12 h, si une version plus récente est publiée. Si c'est le cas, une entrée *Mise à jour disponible* apparaît en tête du menu de la zone de notification et un bouton dans la barre de l'éditeur ; tous deux ouvrent la page de téléchargement. Rien n'est installé automatiquement. Désactivable dans *Réglages → Application* ; *Réglages → À propos → Vérifier maintenant* force une vérification.
 - **Ajouter une brique** : cliquez dessus dans la palette de gauche, ou glissez-la sur l'aperçu.
 - **Dispositions et écrans** : la barre du haut affiche la disposition en cours d'édition et les écrans où elle est affichée — cliquez sur un écran pour l'y activer ou l'en retirer. **+** crée une nouvelle disposition (copie de l'actuelle). Le même réglage existe dans *Réglages → Écrans*.
 - **Déplacer / redimensionner** : à la souris sur l'aperçu, ou avec les champs *Position* de l'inspecteur.
@@ -75,7 +76,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Une release **brouillon** est créée avec le `setup.exe` ; il reste à la publier. On peut aussi lancer le workflow à la main (onglet *Actions → Release → Run workflow*) : l'installeur est alors dans les *artifacts* du run.
+Une release **brouillon** est créée avec le `setup.exe` ; il reste à la publier. **Tant qu'elle reste en brouillon, les applications installées ne la voient pas** (la recherche de mise à jour utilise la dernière release publiée, hors préversions). On peut aussi lancer le workflow à la main (onglet *Actions → Release → Run workflow*) : l'installeur est alors dans les *artifacts* du run.
 
 Pensez à aligner le numéro de version dans `package.json`, `src-tauri/Cargo.toml` et `src-tauri/tauri.conf.json` avant de taguer.
 
@@ -115,6 +116,7 @@ src-tauri/src/
   net.rs                     Requêtes JSON (météo, géolocalisation) avec cache
   feeds.rs                   Récupération + analyse RSS/Atom/JSON Feed (feed-rs)
   images.rs                  Listing des dossiers d'images et de vidéos
+  updates.rs                 Recherche de mise à jour (dernière release GitHub)
   video_themes.rs            Thèmes vidéo (Vidéos\Magic Wallpaper\<thème>, thèmes fournis)
 ```
 

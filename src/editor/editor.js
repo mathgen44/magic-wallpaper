@@ -26,6 +26,7 @@ const S = {
   layoutId: null, // disposition en cours d'édition
   showGrid: true,
   live: true,
+  update: null, // résultat de la recherche de mise à jour
 };
 const $ = (sel) => document.querySelector(sel);
 /** Disposition en cours d'édition. */
@@ -641,6 +642,12 @@ function settingsPanel() {
     $("#grid").hidden = !S.showGrid;
   });
 
+  const checkUpdates = el("input", { type: "checkbox", id: "checkupdates", checked: S.cfg.settings.checkUpdates !== false });
+  checkUpdates.addEventListener("change", () => {
+    S.cfg.settings.checkUpdates = checkUpdates.checked;
+    changed();
+  });
+
   const logBox = el("pre", { class: "log" });
   const details = el("details", {}, el("summary", {}, "Journal de diagnostic"), logBox);
   details.addEventListener("toggle", async () => {
@@ -655,6 +662,7 @@ function settingsPanel() {
       toggle(autostart, "Lancer au démarrage de Windows"),
       toggle(live, "Appliquer les modifications en direct sur le bureau"),
       toggle(grid, "Afficher la grille dans l'éditeur"),
+      toggle(checkUpdates, "Rechercher les mises à jour"),
     )),
     section("Disposition",
       el("div", { class: "insp-actions" },
@@ -664,8 +672,54 @@ function settingsPanel() {
         el("button", { class: "btn danger", onclick: resetLayout }, "Réinitialiser"),
       ),
     ),
-    section("À propos", el("p", { class: "muted small" }, "Magic Wallpaper — par mathgen44 · licence MIT"), details),
+    section("À propos", el("p", { class: "muted small" }, "Magic Wallpaper — par mathgen44 · licence MIT"), updatePanel(), details),
   ];
+}
+
+// ---- Mises à jour ----
+function updateText(st) {
+  if (!st) return "";
+  if (st.available) return `Version ${st.available.version} disponible (installée : ${st.current}).`;
+  if (st.error) return `Version ${st.current} — recherche impossible : ${st.error}`;
+  if (st.checked_ms) return `Version ${st.current} — à jour (vérifié à ${new Date(st.checked_ms).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}).`;
+  return `Version ${st.current}.`;
+}
+
+function updatePanel() {
+  const text = el("p", { class: "small" }, updateText(S.update));
+  const download = el("button", { class: "btn primary", hidden: !S.update?.available, onclick: () => openRelease() }, "Télécharger");
+  const check = el("button", {
+    class: "btn",
+    onclick: async () => {
+      check.disabled = true;
+      text.textContent = "Recherche en cours…";
+      try {
+        showUpdate(await api.checkUpdate(true));
+        if (!S.update.available && !S.update.error) toast("Magic Wallpaper est à jour");
+      } catch (e) {
+        text.textContent = "Recherche impossible : " + e;
+      }
+      check.disabled = false;
+      text.textContent = updateText(S.update);
+      download.hidden = !S.update?.available;
+    },
+  }, "Vérifier maintenant");
+  return el("div", { class: "update-panel" }, text, el("div", { class: "insp-actions" }, check, download));
+}
+
+function openRelease() {
+  const url = S.update?.available?.url;
+  if (url) api.openUrl(url).catch((e) => toast("Ouverture impossible : " + e, true));
+}
+
+function showUpdate(st) {
+  S.update = st;
+  const b = $("#btn-update");
+  b.hidden = !st?.available;
+  if (st?.available) {
+    b.textContent = `Mise à jour ${st.available.version} disponible`;
+    b.title = "Ouvrir la page de téléchargement";
+  }
 }
 
 async function exportLayout() {
@@ -931,6 +985,9 @@ async function init() {
   $("#btn-undo").addEventListener("click", undo);
   $("#btn-redo").addEventListener("click", redo);
   $("#btn-apply").addEventListener("click", apply);
+  $("#btn-update").addEventListener("click", openRelease);
+  api.checkUpdate().then(showUpdate).catch(() => {});
+  api.onUpdateAvailable(showUpdate);
   new ResizeObserver(fitStage).observe($("#stage"));
 
   fitStage();
