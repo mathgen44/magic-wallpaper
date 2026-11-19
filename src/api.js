@@ -180,6 +180,17 @@ export const api = {
     // Hors Tauri : un dossier servi par Vite, ex. « /videos » → /videos/aube.mp4…
     return ["aube", "jour", "coucher", "nuit"].map((n) => `${folder.replace(/\/$/, "")}/${n}.mp4`);
   },
+  /** Thèmes vidéo : { root, themes: [{ name, path, videos, bundled }] }. */
+  async videoThemes() {
+    if (isTauri) return invoke("video_themes");
+    // Hors Tauri : le thème fourni, servi par Vite depuis le dépôt.
+    const videos = ["aube", "jour", "coucher", "nuit"].map((n) => `/src-tauri/video-themes/Ciel/${n}.mp4`);
+    return { root: "(navigateur)", themes: [{ name: "Ciel", path: "/src-tauri/video-themes/Ciel", videos, bundled: true }, { name: "Ciel — jour seul", path: "", videos: [videos[1]], bundled: false }] };
+  },
+  async openVideoThemesFolder() {
+    if (isTauri) return invoke("open_video_themes_folder");
+    alert("Dossier des thèmes : disponible dans l'application");
+  },
   async fileUrl(path) {
     if (!path) return "";
     if (/^(https?:|data:|blob:)/.test(path)) return path;

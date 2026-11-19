@@ -50,12 +50,17 @@ WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon l'installeur
 
 *Thème → Fond → Type de fond* :
 
-- **Vidéo** : une vidéo personnelle (MP4 H.264 ou WebM), lue en boucle et sans le son. Réglages : vitesse de lecture, remplir / ajuster, assombrir, flou.
-- **Vidéos selon l'heure** : une vidéo par ambiance — **aube**, **journée**, **coucher de soleil**, **nuit** — avec un fondu enchaîné au changement.
-  - Le plus simple : choisir un **dossier** contenant des fichiers nommés `aube`, `jour`, `coucher` (ou `crepuscule`) et `nuit` (les noms anglais `dawn`, `day`, `dusk`/`sunset`, `night` marchent aussi). Chaque ambiance peut aussi être choisie à la main.
-  - Changement **selon le soleil** (heures réelles de lever et de coucher au lieu choisi, comme la brique Soleil) ou **à heures fixes**.
-  - *Ambiance affichée* force une ambiance (pratique pour vérifier ses vidéos).
-  - S'il manque une ambiance, la plus proche est utilisée (aube ↔ coucher, etc.).
+- **Thème vidéo** (fond par défaut des nouvelles dispositions, avec le thème fourni **Ciel** : collines sous un ciel d'aube, de jour, de coucher de soleil et de nuit étoilée) : on choisit un thème dans la liste. Chaque thème est un **sous-dossier** de `Vidéos\Magic Wallpaper\` (bouton *Ouvrir le dossier* ; *Actualiser* après en avoir ajouté un) :
+  - **une seule vidéo** dans le dossier : elle est jouée en permanence ;
+  - **plusieurs vidéos** nommées `aube`, `jour`, `coucher` (ou `crepuscule`) et `nuit` (ou `dawn`, `day`, `dusk`/`sunset`, `night`) : l'ambiance suit le moment de la journée, avec un fondu enchaîné. S'il manque une ambiance, la plus proche est utilisée.
+  - Changement **selon le soleil** (heures réelles de lever et de coucher au lieu choisi, comme la brique Soleil) ou **à heures fixes** ; *Ambiance affichée* force une ambiance pour vérifier ses vidéos.
+  - **Personnalisé** : un dossier quelconque et/ou une vidéo choisie pour chaque ambiance.
+  - Sans aucun thème, le dégradé du thème de couleurs s'affiche.
+- **Vidéo** : une vidéo personnelle (MP4 H.264 ou WebM), lue en boucle et sans le son.
+
+Réglages communs : vitesse de lecture, remplir / ajuster, assombrir, flou.
+
+Les thèmes fournis avec l'installeur sont dans `src-tauri/video-themes/<thème>/` (ressources de l'application, `bundle.resources` de `tauri.conf.json`) ; un thème de l'utilisateur du même nom les remplace. Les vidéos de « Ciel » sont générées par `python scripts/theme-ciel.py` (numpy + ffmpeg) : plans fixes de 20 s en 1080p, boucle sans raccord, ~1 Mo chacune.
 
 Conseils : des plans fixes avec peu de mouvement (eau, nuages, lumières qui clignotent) se prêtent le mieux à une boucle ; préférez des vidéos de 10 à 30 s en 1080p (ou à la définition de l'écran), encodées en H.264 avec un débit modéré — la lecture est décodée par le GPU et la vidéo est mise en pause quand le fond est en pause.
 
@@ -110,6 +115,7 @@ src-tauri/src/
   net.rs                     Requêtes JSON (météo, géolocalisation) avec cache
   feeds.rs                   Récupération + analyse RSS/Atom/JSON Feed (feed-rs)
   images.rs                  Listing des dossiers d'images et de vidéos
+  video_themes.rs            Thèmes vidéo (Vidéos\Magic Wallpaper\<thème>, thèmes fournis)
 ```
 
 La configuration est enregistrée dans `%APPDATA%\com.mathgen44.magicwallpaper\layout.json`, le journal dans `%LOCALAPPDATA%\com.mathgen44.magicwallpaper\logs\`.

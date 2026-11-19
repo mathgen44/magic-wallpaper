@@ -23,6 +23,7 @@ mod legacy;
 mod media;
 mod net;
 mod sysmon;
+mod video_themes;
 
 use serde::Serialize;
 use serde_json::Value;
@@ -387,6 +388,22 @@ fn list_videos(app: AppHandle, folder: String) -> Result<Vec<String>, String> {
     Ok(images::list_videos(&folder))
 }
 
+/// Thèmes vidéo disponibles (un dossier par thème).
+#[tauri::command]
+fn video_themes(app: AppHandle) -> video_themes::VideoThemes {
+    video_themes::list(&app)
+}
+
+/// Ouvre le dossier des thèmes vidéo de l'utilisateur dans l'Explorateur.
+#[tauri::command]
+fn open_video_themes_folder(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = video_themes::user_root(&app).ok_or("Dossier des vidéos introuvable")?;
+    app.opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn allow_file(app: AppHandle, path: String) -> Result<(), String> {
     app.asset_protocol_scope().allow_file(&path).map_err(|e| e.to_string())
@@ -609,6 +626,8 @@ pub fn run() {
             get_monitors,
             list_images,
             list_videos,
+            video_themes,
+            open_video_themes_folder,
             allow_file,
             fetch_feeds,
             system_info,

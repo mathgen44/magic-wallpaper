@@ -57,7 +57,7 @@ export const DEFAULT_BACKGROUND = {
   image: "", fit: "cover", dim: 0.2, blurImg: 0,
   // Vidéo (type "video") et vidéos selon l'heure (type "dynamic", voir videobg.js).
   video: "", speed: 1, fade: 4,
-  pack: "", video_dawn: "", video_day: "", video_dusk: "", video_night: "",
+  videoTheme: "", pack: "", video_dawn: "", video_day: "", video_dusk: "", video_night: "",
   schedule: "sun", location: { mode: "auto" }, margin: 45,
   dawnAt: 6, dayAt: 9, duskAt: 18, nightAt: 21, forcePhase: "auto",
 };
@@ -105,7 +105,8 @@ export async function applyBackground(layer, bg) {
       if (bg.blurImg) s.filter = `blur(${bg.blurImg}px)`;
     }
   } else if (isVideoBackground(bg)) {
-    s.backgroundColor = "#000";
+    // Dégradé visible tant que la vidéo charge, ou si le thème n'a pas de vidéo.
+    s.backgroundImage = `linear-gradient(${bg.angle ?? 135}deg, ${bg.from}, ${bg.to})`;
     if (bg.blurImg) s.filter = `blur(${bg.blurImg}px)`;
   }
   const dimmed = bg.type === "image" || isVideoBackground(bg);

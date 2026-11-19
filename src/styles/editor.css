@@ -264,6 +264,7 @@ textarea { resize: vertical; font-family: "Cascadia Code", Consolas, monospace; 
 .color input[type="color"] { width: 34px; height: 30px; padding: 0; border: 1px solid var(--e-line); border-radius: 6px; background: none; flex: none; cursor: pointer; }
 .color .hex { font-family: "Cascadia Code", Consolas, monospace; }
 .picker { display: flex; gap: 6px; }
+.videotheme { display: grid; gap: 6px; }
 .checklist { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
 .check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .check input { accent-color: var(--e-accent); }

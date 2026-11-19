@@ -36,7 +36,8 @@ export function defaultLayout(name = "Principale", id = "main") {
     name,
     grid: { cols: 48, rows: 27, gap: 14 },
     theme,
-    background,
+    // Par défaut : thème vidéo « Ciel » (fourni), sur le dégradé du thème « Nuit » s'il manque.
+    background: { ...background, type: "dynamic", videoTheme: "Ciel" },
     widgets: [
       place("clock", 2, 2, 15, 7),
       place("sysinfo", 36, 2, 10, 13),

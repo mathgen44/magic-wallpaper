@@ -6,7 +6,7 @@ import { api, isTauri } from "../api.js";
 import { Board } from "../board.js";
 import { defaultConfig, defaultLayout, layoutForScreen, makeWidget, normalize } from "../model.js";
 import { FONTS, PRESETS, presetConfig } from "../themes.js";
-import { PHASES } from "../videobg.js";
+import { CUSTOM_THEME, PHASES } from "../videobg.js";
 import { WIDGETS, WIDGET_LIST } from "../widgets/index.js";
 import { clamp, clone, el, uid } from "../util.js";
 import { buildForm } from "./fields.js";
@@ -541,28 +541,30 @@ function themePanel() {
   const isImg = (b) => b.type === "image";
   const isVid = (b) => b.type === "video" || b.type === "dynamic";
   const isDyn = (b) => b.type === "dynamic";
+  const isCustom = (b) => isDyn(b) && b.videoTheme === CUSTOM_THEME;
   const isFixed = (b) => isDyn(b) && b.schedule === "fixed";
   const hour = (key, label) => ({ key, label, type: "number", min: 0, max: 23, showIf: isFixed });
   const bgDefs = [
-    { key: "type", label: "Type de fond", type: "select", choices: [["color", "Couleur unie"], ["gradient", "Dégradé"], ["image", "Image"], ["video", "Vidéo"], ["dynamic", "Vidéos selon l'heure"]] },
+    { key: "type", label: "Type de fond", type: "select", choices: [["color", "Couleur unie"], ["gradient", "Dégradé"], ["image", "Image"], ["video", "Vidéo"], ["dynamic", "Thème vidéo"]] },
     { key: "color", label: "Couleur", type: "color", showIf: (b) => b.type === "color" },
     { key: "from", label: "Couleur de départ", type: "color", showIf: (b) => b.type === "gradient" },
     { key: "to", label: "Couleur d'arrivée", type: "color", showIf: (b) => b.type === "gradient" },
     { key: "angle", label: "Angle (°)", type: "range", min: 0, max: 360, step: 5, showIf: (b) => b.type === "gradient" },
     { key: "image", label: "Image", type: "image", showIf: isImg },
     { key: "video", label: "Vidéo", type: "video", hint: "MP4 (H.264) ou WebM, lue en boucle et sans le son.", showIf: (b) => b.type === "video" },
+    { key: "videoTheme", label: "Thème vidéo", type: "videotheme", custom: CUSTOM_THEME, showIf: isDyn },
     {
       key: "pack",
       label: "Dossier de vidéos",
       type: "folder",
       placeholder: "C:\\Users\\…\\Vidéos\\Ambiances",
-      hint: "Les fichiers sont reconnus d'après leur nom : aube, jour, coucher (ou crepuscule), nuit. Les champs ci-dessous remplacent une vidéo du dossier.",
-      showIf: isDyn,
+      hint: "Les fichiers sont reconnus d'après leur nom : aube, jour, coucher (ou crepuscule), nuit. Une seule vidéo : jouée en permanence. Les champs ci-dessous remplacent une vidéo du dossier.",
+      showIf: isCustom,
     },
-    { key: "video_dawn", label: "Aube", type: "video", placeholder: "(dossier)", showIf: isDyn },
-    { key: "video_day", label: "Journée", type: "video", placeholder: "(dossier)", showIf: isDyn },
-    { key: "video_dusk", label: "Coucher de soleil", type: "video", placeholder: "(dossier)", showIf: isDyn },
-    { key: "video_night", label: "Nuit", type: "video", placeholder: "(dossier)", showIf: isDyn },
+    { key: "video_dawn", label: "Aube", type: "video", placeholder: "(dossier)", showIf: isCustom },
+    { key: "video_day", label: "Journée", type: "video", placeholder: "(dossier)", showIf: isCustom },
+    { key: "video_dusk", label: "Coucher de soleil", type: "video", placeholder: "(dossier)", showIf: isCustom },
+    { key: "video_night", label: "Nuit", type: "video", placeholder: "(dossier)", showIf: isCustom },
     { key: "schedule", label: "Changement d'ambiance", type: "select", choices: [["sun", "Selon le soleil (lever, coucher)"], ["fixed", "À heures fixes"]], showIf: isDyn },
     { key: "location", label: "Lieu", type: "location", showIf: (b) => isDyn(b) && b.schedule !== "fixed" },
     { key: "margin", label: "Durée de l'aube et du coucher (min)", type: "range", min: 15, max: 120, step: 5, hint: "Temps passé dans l'ambiance aube après le lever du soleil, et coucher de soleil avant qu'il se couche.", showIf: (b) => isDyn(b) && b.schedule !== "fixed" },

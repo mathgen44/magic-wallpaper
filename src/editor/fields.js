@@ -191,6 +191,45 @@ function control(def, value, emit, id) {
         },
       };
     }
+    case "videotheme": {
+      // Liste des dossiers de thèmes vidéo + « Personnalisé ».
+      const s = el("select", { id });
+      const hint = el("div", { class: "field-hint" });
+      let cur = value || "";
+      const load = async () => {
+        let list = { root: "", themes: [] };
+        try {
+          list = await api.videoThemes();
+        } catch (e) {
+          console.error(e);
+        }
+        const opts = list.themes.map((t) => {
+          const n = t.videos.length;
+          const detail = n === 1 ? "1 vidéo" : `${n} vidéos`;
+          return el("option", { value: t.name }, `${t.name} (${detail}${t.bundled ? ", fourni" : ""})`);
+        });
+        if (!opts.length) opts.push(el("option", { value: "" }, "Aucun thème trouvé"));
+        s.replaceChildren(...opts, el("option", { value: def.custom }, "Personnalisé (dossier ou fichiers)"));
+        const known = cur === def.custom || list.themes.some((t) => t.name.toLowerCase() === cur.toLowerCase());
+        s.value = known ? cur : s.options[0].value; // vide ou introuvable : le premier thème est utilisé
+        hint.textContent = list.root
+          ? `Un sous-dossier par thème dans ${list.root}. Une seule vidéo : jouée en permanence ; sinon nommez-les aube, jour, coucher, nuit.`
+          : "";
+      };
+      s.addEventListener("change", () => emit((cur = s.value)));
+      const open = el("button", { class: "btn", onclick: () => api.openVideoThemesFolder().catch((e) => alert(e)) }, "Ouvrir le dossier");
+      const refresh = el("button", { class: "btn", onclick: load }, "Actualiser");
+      load();
+      return {
+        node: el("div", { class: "videotheme" }, s, el("div", { class: "picker" }, open, refresh), hint),
+        set: (v) => {
+          if ((v || "") !== cur) {
+            cur = v || "";
+            load();
+          }
+        },
+      };
+    }
     case "folder":
     case "image":
     case "video": {

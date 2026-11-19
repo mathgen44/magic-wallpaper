@@ -1,8 +1,12 @@
-// Fond vidéo : une vidéo en boucle, ou une vidéo par moment de la journée
-// (aube, journée, coucher de soleil, nuit) avec fondu enchaîné entre les ambiances.
+// Fond vidéo : une vidéo en boucle, ou un thème vidéo (un dossier) : une seule vidéo jouée
+// en permanence, ou une vidéo par moment de la journée (aube, journée, coucher de soleil, nuit)
+// avec fondu enchaîné entre les ambiances.
 import { sunTimes } from "./astro.js";
 import { resolveLocation } from "./widgets/location.js";
 import { el } from "./util.js";
+
+/** Valeur de `videoTheme` pour choisir soi-même dossier ou fichiers. */
+export const CUSTOM_THEME = "__custom";
 
 export const PHASES = [
   ["dawn", "Aube"],
@@ -32,7 +36,10 @@ const MIN = 60_000;
 
 const strip = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-/** Associe les fichiers d'un dossier aux ambiances d'après leur nom. */
+/**
+ * Associe les vidéos d'un dossier aux ambiances d'après leur nom.
+ * Une seule vidéo (ou aucun nom reconnu) : la même pour toute la journée.
+ */
 export function matchPack(files) {
   const out = {};
   for (const f of files) {
@@ -40,7 +47,15 @@ export function matchPack(files) {
     const hit = NAME_HINTS.find(([, words]) => words.some((w) => name.includes(w)));
     if (hit && !out[hit[0]]) out[hit[0]] = f;
   }
+  if (files.length && (files.length === 1 || !Object.keys(out).length)) {
+    for (const [p] of PHASES) out[p] = files[0];
+  }
   return out;
+}
+
+/** Thème choisi parmi ceux disponibles (le premier si le nom est vide ou introuvable). */
+export function findTheme(themes, name) {
+  return themes.find((t) => t.name.toLowerCase() === (name || "").toLowerCase()) || themes[0] || null;
 }
 
 const valid = (d) => d instanceof Date && !isNaN(d);
@@ -115,28 +130,37 @@ export class VideoBackground {
       await this.show(bg.video);
       return;
     }
-    // Vidéos par ambiance : celles choisies une à une, sinon celles du dossier.
-    const sources = {};
-    if (bg.pack) {
-      try {
-        Object.assign(sources, matchPack(await this.api.listVideos(bg.pack)));
-      } catch (e) {
-        console.error("Dossier de vidéos :", e);
-      }
-    }
-    for (const [p] of PHASES) {
-      const v = bg[`video_${p}`];
-      if (v) sources[p] = v;
-    }
-    this.sources = sources;
     if (bg.schedule !== "fixed") {
       this.coords = await resolveLocation(bg.location, this.api).catch(() => null);
     }
     if (!this.dead) this.tick();
   }
 
-  tick() {
+  /** Vidéos par ambiance : celles du thème, ou (personnalisé) du dossier et des champs. */
+  async loadSources() {
+    const bg = this.bg;
+    let sources = {};
+    try {
+      if (bg.videoTheme === CUSTOM_THEME) {
+        if (bg.pack) sources = matchPack(await this.api.listVideos(bg.pack));
+        for (const [p] of PHASES) if (bg[`video_${p}`]) sources[p] = bg[`video_${p}`];
+      } else {
+        const theme = findTheme((await this.api.videoThemes()).themes, bg.videoTheme);
+        if (theme) sources = matchPack(theme.videos);
+        this.layer.dataset.theme = theme?.name || "";
+      }
+    } catch (e) {
+      console.error("Thème vidéo :", e);
+      return this.sources || {};
+    }
+    return sources;
+  }
+
+  async tick() {
     clearTimeout(this.timer);
+    if (this.dead) return;
+    // Relu à chaque passage : un thème ajouté ou complété est pris en compte sans redémarrer.
+    this.sources = await this.loadSources();
     if (this.dead) return;
     const now = new Date();
     let phase, next;
