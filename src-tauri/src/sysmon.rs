@@ -125,7 +125,8 @@ impl SysMonitor {
                 .collect(),
             net_rx: (rx as f64 / secs) as u64,
             net_tx: (tx as f64 / secs) as u64,
-            uptime: System::uptime(),
+            // Depuis le dernier allumage, démarrage rapide compris (voir boottime.rs).
+            uptime: crate::boottime::uptime(System::uptime()),
             host: System::host_name().unwrap_or_default(),
             os: System::long_os_version().unwrap_or_default(),
             processes: self.sys.processes().len(),

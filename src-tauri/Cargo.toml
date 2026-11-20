@@ -58,6 +58,7 @@ windows = { version = "0.61", features = [
   "Win32_UI_Shell_PropertiesSystem",
   "Win32_Storage_EnhancedStorage",
   "Win32_System_SystemServices",
+  "Win32_System_EventLog",
 ] }
 
 [profile.release]

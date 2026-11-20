@@ -44,7 +44,7 @@ WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon l'installeur
 | Agenda | Adresse iCal (.ics) : Google Agenda (*Paramètres → votre agenda → Adresse secrète au format iCal*), Outlook (*Calendrier → Calendriers partagés → Publier*), Nextcloud… Récurrences prises en charge |
 | Média en cours | Contrôles multimédias de Windows (Spotify, navigateurs, Lecteur multimédia, VLC…) |
 | Visualiseur audio | Capture du son de la sortie audio par défaut (WASAPI *loopback*) |
-| Infos système | CPU, RAM, disques, réseau ; GPU (utilisation, VRAM, température) via les compteurs Windows ; température CPU via Windows ou [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (*Options → Remote Web Server*) |
+| Infos système | CPU, RAM, disques, réseau, temps depuis le dernier allumage (démarrage rapide de Windows compris, d'après le journal Système) ; GPU (utilisation, VRAM, température) via les compteurs Windows ; température CPU via Windows ou [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (*Options → Remote Web Server*) |
 | Flux RSS | Flux RSS / Atom / JSON Feed |
 | Carrousel | Dossier d'images ou liste d'adresses |
 

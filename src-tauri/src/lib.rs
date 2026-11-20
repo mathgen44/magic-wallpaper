@@ -11,6 +11,7 @@
 
 mod apps;
 mod audio;
+mod boottime;
 mod config;
 mod desktop;
 mod feeds;
