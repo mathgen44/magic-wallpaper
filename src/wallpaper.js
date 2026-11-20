@@ -4,19 +4,47 @@ import { api } from "./api.js";
 import { Board } from "./board.js";
 import { layoutForScreen, normalize } from "./model.js";
 
-const board = new Board(document.getElementById("board"));
+const root = document.getElementById("board");
+let board = new Board(root);
+let layout = null;
+let gaming = false; // mode jeu : fond uni, briques et vidéo arrêtées
 
 // Nom de l'écran affiché (transmis par le backend) : choisit la disposition.
 const screenName = new URLSearchParams(location.search).get("name") || "";
 
+/** Couleur du fond uni en mode jeu : la couleur de fond, ou la plus sombre du dégradé. */
+function solidColor(l) {
+  const b = l?.background || {};
+  return b.type === "color" ? b.color : b.to || b.color || "#000";
+}
+
 function show(cfg) {
-  const layout = layoutForScreen(normalize(cfg), screenName);
-  if (layout) board.render(layout);
+  layout = layoutForScreen(normalize(cfg), screenName);
+  if (gaming) root.style.background = solidColor(layout);
+  else if (layout) board.render(layout);
+}
+
+/** Mode jeu : on détruit tout (minuteries, vidéo, requêtes) et on ne garde qu'une couleur. */
+function setGameMode(st) {
+  const on = !!st?.active && !st.close; // « fermer » : le backend retire la fenêtre elle-même
+  if (on === gaming) return;
+  gaming = on;
+  if (on) {
+    board.destroy();
+    root.style.background = solidColor(layout);
+  } else {
+    root.style.background = "";
+    board = new Board(root);
+    if (layout) board.render(layout);
+  }
 }
 
 async function start() {
-  show(await api.getConfig());
+  const cfg = await api.getConfig();
+  setGameMode(await api.gameMode().catch(() => null));
+  show(cfg);
   api.onConfigChanged(show);
+  api.onGameMode(setGameMode);
 }
 
 // ---- Interactivité ----

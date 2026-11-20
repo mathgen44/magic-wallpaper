@@ -14,6 +14,7 @@ mod audio;
 mod config;
 mod desktop;
 mod feeds;
+mod gamemode;
 mod gpu;
 mod ics;
 mod images;
@@ -186,7 +187,7 @@ fn rebuild(app: &AppHandle) {
     // Les anciennes fenêtres sont détruites après la création des nouvelles (moins de clignotement).
     let old: Vec<Wall> = st.walls.lock().unwrap().drain(..).collect();
     *st.monitor_sig.lock().unwrap() = monitor_signature(app);
-    if st.paused.load(Ordering::SeqCst) {
+    if st.paused.load(Ordering::SeqCst) || gamemode::closes_wallpaper(app) {
         destroy_walls(app, old);
         desktop::refresh_wallpaper();
         return;
@@ -446,10 +447,33 @@ fn show_update_in_tray(app: &AppHandle, rel: &updates::Release) {
                 *slot = Some((item, url));
             }
         }
+    });
+    refresh_tray_tooltip(app);
+}
+
+/// Info-bulle de l'icône : mode jeu, mise à jour disponible.
+fn refresh_tray_tooltip(app: &AppHandle) {
+    let mut parts = vec!["Magic Wallpaper".to_string()];
+    let game = app.state::<gamemode::GameState>().0.lock().unwrap().clone();
+    if game.active {
+        parts.push(format!("mode jeu ({})", game.game));
+    }
+    if let Some(rel) = &app.state::<updates::UpdateState>().0.lock().unwrap().available {
+        parts.push(format!("mise à jour v{} disponible", rel.version));
+    }
+    let text = parts.join(" — ");
+    let a = app.clone();
+    let _ = app.run_on_main_thread(move || {
         if let Some(tray) = a.tray_by_id("main") {
-            let _ = tray.set_tooltip(Some(format!("Magic Wallpaper — {label}")));
+            let _ = tray.set_tooltip(Some(text));
         }
     });
+}
+
+/// État du mode jeu (fond d'écran au démarrage, éditeur).
+#[tauri::command]
+fn game_mode(app: AppHandle) -> gamemode::GameStatus {
+    app.state::<gamemode::GameState>().0.lock().unwrap().clone()
 }
 
 #[tauri::command]
@@ -682,6 +706,7 @@ pub fn run() {
         .manage(audio::AudioState::default())
         .manage(apps::AppsState::default())
         .manage(updates::UpdateState::default())
+        .manage(gamemode::GameState::default())
         .invoke_handler(tauri::generate_handler![
             get_config,
             save_config,
@@ -691,6 +716,7 @@ pub fn run() {
             video_themes,
             open_video_themes_folder,
             check_update,
+            game_mode,
             allow_file,
             fetch_feeds,
             system_info,
@@ -724,6 +750,7 @@ pub fn run() {
             spawn_watchdog(handle.clone());
             input::install(handle.clone());
             updates::spawn(handle.clone(), feeds::client());
+            gamemode::spawn(handle.clone());
             let autostarted = std::env::args().any(|a| a == "--autostart");
             if !autostarted {
                 open_editor(&handle);

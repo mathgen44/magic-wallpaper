@@ -24,6 +24,7 @@ WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon l'installeur
 ## Utilisation
 
 - **Icône de la zone de notification** : clic gauche = éditeur ; clic droit = pause, recharger, quitter.
+- **Mode jeu** : quand un jeu tourne, le fond d'écran passe en **fond uni** (briques, vidéo et minuteries arrêtées) ou, au choix, est **fermé** (libère aussi la mémoire) ; il revient une dizaine de secondes après la fermeture du jeu. Sont reconnus : les jeux des bibliothèques Steam et Epic, ceux installés par GOG, Xbox, Riot, Ubisoft, EA ou Battle.net, les jeux en plein écran exclusif, et les exécutables ajoutés dans *Réglages → Mode jeu → Autres jeux*. En option : toute application en plein écran (vidéos, présentations).
 - **Mises à jour** : l'application vérifie sur GitHub, 20 s après le démarrage puis toutes les 12 h, si une version plus récente est publiée. Si c'est le cas, une entrée *Mise à jour disponible* apparaît en tête du menu de la zone de notification et un bouton dans la barre de l'éditeur ; tous deux ouvrent la page de téléchargement. Rien n'est installé automatiquement. Désactivable dans *Réglages → Application* ; *Réglages → À propos → Vérifier maintenant* force une vérification.
 - **Ajouter une brique** : cliquez dessus dans la palette de gauche, ou glissez-la sur l'aperçu.
 - **Dispositions et écrans** : la barre du haut affiche la disposition en cours d'édition et les écrans où elle est affichée — cliquez sur un écran pour l'y activer ou l'en retirer. **+** crée une nouvelle disposition (copie de l'actuelle). Le même réglage existe dans *Réglages → Écrans*.
@@ -116,6 +117,7 @@ src-tauri/src/
   net.rs                     Requêtes JSON (météo, géolocalisation) avec cache
   feeds.rs                   Récupération + analyse RSS/Atom/JSON Feed (feed-rs)
   images.rs                  Listing des dossiers d'images et de vidéos
+  gamemode.rs                Mode jeu (détection des jeux, fond uni ou fermé)
   updates.rs                 Recherche de mise à jour (dernière release GitHub)
   video_themes.rs            Thèmes vidéo (Vidéos\Magic Wallpaper\<thème>, thèmes fournis)
 ```
@@ -161,7 +163,6 @@ Types de champs disponibles : `text`, `textarea`, `list`, `number`, `range`, `to
 ## Limites connues / pistes
 
 - Interactivité limitée : seuls les clics (simple ou double) sur une zone vide du bureau sont relayés au fond d'écran. Pas de survol ni de défilement.
-- Pas encore de mise en pause automatique quand une application est en plein écran (jeux).
 - La température du processeur n'est souvent pas exposée par Windows : utilisez LibreHardwareMonitor. Celle du GPU dépend du pilote (WDDM 2.4+).
 - Idées de briques : état des services / Uptime Kuma, Zabbix / Proxmox, Docker, image du jour, notes.
 

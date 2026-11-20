@@ -27,6 +27,7 @@ const S = {
   showGrid: true,
   live: true,
   update: null, // résultat de la recherche de mise à jour
+  game: null, // état du mode jeu
 };
 const $ = (sel) => document.querySelector(sel);
 /** Disposition en cours d'édition. */
@@ -664,6 +665,7 @@ function settingsPanel() {
       toggle(grid, "Afficher la grille dans l'éditeur"),
       toggle(checkUpdates, "Rechercher les mises à jour"),
     )),
+    section("Mode jeu", gameModePanel()),
     section("Disposition",
       el("div", { class: "insp-actions" },
         el("button", { class: "btn", onclick: exportLayout }, "Exporter…"),
@@ -674,6 +676,38 @@ function settingsPanel() {
     ),
     section("À propos", el("p", { class: "muted small" }, "Magic Wallpaper — par mathgen44 · licence MIT"), updatePanel(), details),
   ];
+}
+
+// ---- Mode jeu ----
+function gameText(st) {
+  if (!st?.active) return "Inactif : aucun jeu détecté.";
+  return `Actif : ${st.game}. Le fond d'écran est ${st.close ? "fermé" : "en fond uni"} jusqu'à la fin du jeu.`;
+}
+
+function gameModePanel() {
+  const defs = [
+    { key: "enabled", label: "Activer le mode jeu", type: "toggle" },
+    { key: "action", label: "Pendant un jeu", type: "select", choices: [["solid", "Fond uni (briques et vidéo arrêtées)"], ["close", "Fermer le fond d'écran (libère aussi la mémoire)"]], showIf: (g) => g.enabled },
+    { key: "fullscreen", label: "Aussi pour toute application en plein écran (vidéos, présentations…)", type: "toggle", showIf: (g) => g.enabled },
+    {
+      key: "extra",
+      label: "Autres jeux",
+      type: "list",
+      hint: "Un nom d'exécutable par ligne (ex. retroarch.exe), pour les jeux installés hors Steam, Epic, GOG, Xbox, Riot, Ubisoft, EA et Battle.net.",
+      showIf: (g) => g.enabled,
+    },
+  ];
+  return [
+    el("p", { class: "muted small" }, "Quand un jeu tourne, le fond d'écran s'efface pour lui laisser le processeur et la carte graphique. Les jeux Steam, Epic et des principaux lanceurs sont reconnus automatiquement, ainsi que les jeux en plein écran exclusif."),
+    form(defs, () => S.cfg.settings.gameMode, { key: "game" }),
+    el("p", { class: "small game-status" }, gameText(S.game)),
+  ];
+}
+
+function showGame(st) {
+  S.game = st;
+  const p = document.querySelector(".game-status");
+  if (p) p.textContent = gameText(st);
 }
 
 // ---- Mises à jour ----
@@ -993,6 +1027,8 @@ async function init() {
   $("#btn-update").addEventListener("click", openRelease);
   api.checkUpdate().then(showUpdate).catch(() => {});
   api.onUpdateStatus(showUpdate);
+  api.gameMode().then(showGame).catch(() => {});
+  api.onGameMode(showGame);
   new ResizeObserver(fitStage).observe($("#stage"));
 
   fitStage();

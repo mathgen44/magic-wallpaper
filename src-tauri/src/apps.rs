@@ -102,7 +102,7 @@ const RULES: &[(&str, &[&str])] = &[
 ];
 
 /// Chemins typiques des jeux installés hors Steam / Epic.
-const GAME_PATHS: &[&str] = &[
+pub(crate) const GAME_PATHS: &[&str] = &[
     "steamapps", "\\epic games\\", "gog games", "\\xboxgames\\", "riot games", "ubisoft game launcher\\games", "\\ea games\\",
     "\\games\\", "\\jeux\\", "battle.net", "minecraft",
 ];
@@ -228,8 +228,9 @@ fn steam_images(steam: &std::path::Path, id: &str) -> (Option<String>, Option<St
     (cover, icon)
 }
 
+/// Bibliothèques Steam (dossier principal + celles de libraryfolders.vdf).
 #[cfg_attr(not(windows), allow(dead_code))]
-fn scan_steam(steam: &std::path::Path) -> Vec<AppEntry> {
+fn steam_libraries(steam: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut libs = vec![steam.to_path_buf()];
     if let Ok(t) = std::fs::read_to_string(steam.join("steamapps").join("libraryfolders.vdf")) {
         for (k, v) in vdf_pairs(&t) {
@@ -241,8 +242,13 @@ fn scan_steam(steam: &std::path::Path) -> Vec<AppEntry> {
             }
         }
     }
+    libs
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn scan_steam(steam: &std::path::Path) -> Vec<AppEntry> {
     let mut out = Vec::new();
-    for lib in libs {
+    for lib in steam_libraries(steam) {
         let Ok(rd) = std::fs::read_dir(lib.join("steamapps")) else { continue };
         for e in rd.flatten() {
             let f = e.file_name().to_string_lossy().to_string();
@@ -288,6 +294,42 @@ pub fn epic_manifest(text: &str) -> Option<(String, String, String, String)> {
     let url = format!("com.epicgames.launcher://apps/{ns}%3A{item}%3A{app}?action=launch&silent=true");
     let exe = std::path::Path::new(&s("InstallLocation")).join(s("LaunchExecutable")).to_string_lossy().into_owned();
     Some((app, name, url, exe))
+}
+
+/// Dossiers d'installation des jeux connus (en minuscules, terminés par `\`) :
+/// `steamapps\common` de chaque bibliothèque Steam et emplacements des jeux Epic.
+pub fn game_dirs() -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut push = |p: &std::path::Path| {
+        let mut s = p.to_string_lossy().to_lowercase().replace('/', "\\");
+        if !s.ends_with('\\') {
+            s.push('\\');
+        }
+        if s.len() > 4 && !out.contains(&s) {
+            out.push(s);
+        }
+    };
+    if let Some(steam) = imp::steam_root() {
+        for lib in steam_libraries(&steam) {
+            push(&lib.join("steamapps").join("common"));
+        }
+    }
+    let manifests = std::path::Path::new("C:\\ProgramData\\Epic\\EpicGamesLauncher\\Data\\Manifests");
+    if let Ok(rd) = std::fs::read_dir(manifests) {
+        for e in rd.flatten().filter(|e| e.path().extension().is_some_and(|x| x == "item")) {
+            let Ok(t) = std::fs::read_to_string(e.path()) else { continue };
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(&t) else { continue };
+            // Pas les moteurs ni les plugins (Unreal Engine…) : seulement les jeux.
+            let cats: Vec<&str> = v.get("AppCategories").and_then(|x| x.as_array()).map(|a| a.iter().filter_map(|c| c.as_str()).collect()).unwrap_or_default();
+            if !cats.is_empty() && !cats.contains(&"games") {
+                continue;
+            }
+            if let Some(loc) = v.get("InstallLocation").and_then(|x| x.as_str()).filter(|l| !l.is_empty()) {
+                push(std::path::Path::new(loc));
+            }
+        }
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -376,7 +418,7 @@ mod imp {
         }
     }
 
-    fn steam_root() -> Option<std::path::PathBuf> {
+    pub fn steam_root() -> Option<std::path::PathBuf> {
         unsafe {
             let mut buf = [0u16; 512];
             let mut size = (buf.len() * 2) as u32;
@@ -497,6 +539,9 @@ mod imp {
 #[cfg(not(windows))]
 mod imp {
     use super::AppEntry;
+    pub fn steam_root() -> Option<std::path::PathBuf> {
+        None
+    }
     pub fn scan() -> Vec<AppEntry> {
         Vec::new()
     }

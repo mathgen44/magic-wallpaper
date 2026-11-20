@@ -27,6 +27,9 @@ export function makeWidget(type, x = 0, y = 0) {
   return { id: uid(), type, x, y, w: w.size.w, h: w.size.h, options: defaultsFor(type), style: { ...DEFAULT_STYLE } };
 }
 
+/** Mode jeu (lu par le backend, gamemode.rs) : action "solid" (fond uni) ou "close" (fond fermé). */
+export const GAME_MODE_DEFAULT = { enabled: true, fullscreen: false, action: "solid", extra: [] };
+
 /** Disposition par défaut (grille, thème, fond, briques). */
 export function defaultLayout(name = "Principale", id = "main") {
   const { theme, background } = presetConfig("nuit");
@@ -54,7 +57,7 @@ export function defaultLayout(name = "Principale", id = "main") {
  *   Un écran absent utilise la première disposition.
  */
 export function defaultConfig() {
-  return { version: CONFIG_VERSION, settings: {}, layouts: [defaultLayout()], screens: {} };
+  return { version: CONFIG_VERSION, settings: { gameMode: { ...GAME_MODE_DEFAULT } }, layouts: [defaultLayout()], screens: {} };
 }
 
 function normalizeWidgets(list) {
@@ -108,7 +111,9 @@ export function normalize(cfg) {
   for (const [name, v] of Object.entries(cfg.screens && typeof cfg.screens === "object" ? cfg.screens : {})) {
     if (v === "none" || ids.has(v)) screens[name] = v;
   }
-  return { version: CONFIG_VERSION, settings: { ...(cfg.settings || {}) }, layouts, screens };
+  const settings = { ...(cfg.settings || {}) };
+  settings.gameMode = { ...GAME_MODE_DEFAULT, ...(settings.gameMode || {}) };
+  return { version: CONFIG_VERSION, settings, layouts, screens };
 }
 
 /** Disposition à afficher sur l'écran `name` (null = aucun fond). */

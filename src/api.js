@@ -325,6 +325,15 @@ export const api = {
   async onUpdateStatus(cb) {
     if (isTauri) return listen("update-status", (e) => cb(e.payload));
   },
+  /** Mode jeu : { active, game, close }. Hors Tauri : `?jeu=1` simule un jeu lancé. */
+  async gameMode() {
+    if (isTauri) return invoke("game_mode");
+    const on = new URLSearchParams(location.search).get("jeu") === "1";
+    return { active: on, game: on ? "Hades.exe" : "", close: false };
+  },
+  async onGameMode(cb) {
+    if (isTauri) return listen("game-mode", (e) => cb(e.payload));
+  },
   async reloadWallpapers() {
     if (isTauri) return invoke("reload_wallpapers");
   },
