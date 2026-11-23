@@ -319,7 +319,7 @@ export const api = {
     if (isTauri) return invoke("check_update", { force });
     // Hors Tauri : `?maj=1` dans l'adresse simule une mise à jour disponible.
     const fake = new URLSearchParams(location.search).get("maj") === "1";
-    return { current: "0.6.2", available: fake ? { version: "0.7.0", url: "https://github.com/mathgen44/magic-wallpaper/releases/latest", name: "" } : null, checked_ms: Date.now(), error: null };
+    return { current: "0.6.3", available: fake ? { version: "0.7.0", url: "https://github.com/mathgen44/magic-wallpaper/releases/latest", name: "" } : null, checked_ms: Date.now(), error: null };
   },
   /** Résultat de chaque vérification (au démarrage, toutes les 12 h, ou forcée). */
   async onUpdateStatus(cb) {
