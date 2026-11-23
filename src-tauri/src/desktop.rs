@@ -129,15 +129,35 @@ mod imp {
         }
     }
 
-    unsafe fn fix_zorder(hwnd: HWND, progman: HWND, defview: HWND) {
-        // Notre fenêtre juste sous les icônes…
-        if GetWindow(defview, GW_HWNDNEXT).ok() != Some(hwnd) {
-            let _ = SetWindowPos(hwnd, Some(defview), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    /// `b` est-il plus bas que `a` dans l'ordre Z de leurs frères ?
+    unsafe fn is_below(a: HWND, b: HWND) -> bool {
+        let mut cur = a;
+        for _ in 0..4096 {
+            match GetWindow(cur, GW_HWNDNEXT) {
+                Ok(n) if !n.is_invalid() => {
+                    if n == b {
+                        return true;
+                    }
+                    cur = n;
+                }
+                _ => return false,
+            }
         }
-        // …et le papier peint d'Explorer sous nous.
+        false
+    }
+
+    /// Ordre voulu : icônes, puis nos fenêtres (une par écran, dans n'importe quel ordre),
+    /// puis le papier peint d'Explorer tout en bas. On ne vérifie que la position relative
+    /// aux icônes et au papier peint : exiger d'être *juste* sous les icônes ferait passer
+    /// les fenêtres des autres écrans sous le papier peint.
+    unsafe fn fix_zorder(hwnd: HWND, progman: HWND, defview: HWND) {
+        let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
+        if !is_below(defview, hwnd) {
+            let _ = SetWindowPos(hwnd, Some(defview), 0, 0, 0, 0, flags);
+        }
         if let Some(ww) = find_child(Some(progman), None, w!("WorkerW")) {
-            if GetWindow(hwnd, GW_HWNDNEXT).ok() != Some(ww) {
-                let _ = SetWindowPos(ww, Some(hwnd), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            if !is_below(hwnd, ww) {
+                let _ = SetWindowPos(ww, Some(HWND_BOTTOM), 0, 0, 0, 0, flags);
             }
         }
     }
