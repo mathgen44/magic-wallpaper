@@ -23,12 +23,15 @@ const EXIT_AFTER: u32 = 3;
 /// Exécutables situés dans des dossiers de jeux qui ne sont pas des jeux.
 const NOT_GAMES: &[&str] = &[
     "steam", "steamwebhelper", "steamservice", "gameoverlayui", "epicgameslauncher", "epicwebhelper",
-    "epiconlineservices", "battle.net", "agent.exe", "blizzard", "riotclient", "ubisoftconnect", "upc.exe",
+    "epiconlineservices", "eosoverlayrenderer", "battle.net", "agent.exe", "blizzard", "riotclient", "ubisoftconnect", "upc.exe",
     "uplaywebcore", "ubisoftgamelauncher", "eadesktop", "ealauncher", "eabackgroundservice", "ealocalhost",
     "eaconnect", "galaxy", "goggalaxy",
     "minecraftlauncher", "unitycrashhandler", "crashreport", "crashpad", "easyanticheat", "beservice",
     "unins", "setup", "installer", "vc_redist", "dxsetup", "dotnet",
 ];
+
+/// Dossiers de services des lanceurs (overlays, launcher) : rien n'y est un jeu.
+const NOT_GAME_DIRS: &[&str] = &["\\launcher\\", "\\epic online services\\"];
 
 #[derive(Clone, Default)]
 pub struct Settings {
@@ -89,7 +92,7 @@ pub fn is_game(path: &str, name: &str, dirs: &[String], extra: &[String]) -> boo
     if extra.iter().any(|e| e == name) {
         return true;
     }
-    if NOT_GAMES.iter().any(|n| name.starts_with(n)) || path.contains("\\launcher\\") {
+    if NOT_GAMES.iter().any(|n| name.starts_with(n)) || NOT_GAME_DIRS.iter().any(|d| path.contains(d)) {
         return false;
     }
     dirs.iter().any(|d| path.starts_with(d.as_str())) || crate::apps::GAME_PATHS.iter().any(|t| path.contains(t))
@@ -211,6 +214,7 @@ mod tests {
         assert!(!is_game("c:\\program files (x86)\\steam\\steam.exe", "steam.exe", &dirs, &none));
         assert!(!is_game("c:\\program files (x86)\\epic games\\launcher\\portal\\binaries\\win64\\epicgameslauncher.exe", "epicgameslauncher.exe", &dirs, &none));
         assert!(!is_game("d:\\steamlibrary\\steamapps\\common\\hades\\unitycrashhandler64.exe", "unitycrashhandler64.exe", &dirs, &none));
+        assert!(!is_game("c:\\program files (x86)\\epic games\\epic online services\\managedartifacts\\98bc\\eosoverlayrenderer-win64-shipping.exe", "eosoverlayrenderer-win64-shipping.exe", &dirs, &none));
         assert!(!is_game("c:\\windows\\explorer.exe", "explorer.exe", &dirs, &none));
         assert!(is_game("c:\\tools\\emu\\retroarch.exe", "retroarch.exe", &dirs, &["retroarch.exe".to_string()]));
     }
