@@ -370,6 +370,12 @@ export const api = {
   async autostart(value) {
     if (!isTauri) return value ?? false;
     const m = await import("@tauri-apps/plugin-autostart");
+    // En développement, ne pas inscrire l'exécutable de dev au démarrage de Windows :
+    // il chercherait au prochain allumage un serveur Vite (localhost:1420) absent.
+    if (import.meta.env.DEV && value !== undefined) {
+      console.warn("Démarrage automatique non modifié en développement");
+      return m.isEnabled();
+    }
     if (value === true) await m.enable();
     if (value === false) await m.disable();
     return m.isEnabled();

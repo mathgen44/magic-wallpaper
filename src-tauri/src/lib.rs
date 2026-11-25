@@ -740,8 +740,12 @@ pub fn run() {
             let had_autostart = legacy::migrate(&handle);
             let first_run = !config::exists(&handle);
             log(&handle, format!("Démarrage v{} (premier lancement : {first_run})", app.package_info().version));
-            if first_run || had_autostart {
-                // Lancement automatique avec Windows activé par défaut (désactivable dans l'éditeur).
+            // Lancement automatique avec Windows activé par défaut (désactivable dans l'éditeur).
+            // S'il est déjà activé, on le réinscrit à chaque démarrage : l'entrée pointe ainsi
+            // toujours vers cet exécutable (réparation d'une entrée laissée par la version de dev
+            // ou par une installation déplacée). La version de dev ne s'inscrit jamais.
+            let enabled = handle.autolaunch().is_enabled().unwrap_or(false);
+            if !cfg!(debug_assertions) && (first_run || had_autostart || enabled) {
                 if let Err(e) = handle.autolaunch().enable() {
                     log(&handle, format!("Activation du démarrage automatique impossible : {e}"));
                 }
